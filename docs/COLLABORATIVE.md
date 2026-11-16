@@ -149,7 +149,11 @@ Where the blend shows:
   at least 90 and the weight is at least 0.1.
 
 **Match remains an uncalibrated score.** The calibrated satisfaction model (LightGBM,
-spec §18) needs post-play ratings and is not part of this stage.
+spec §18) was added in Stage 5 ([SATISFACTION.md](SATISFACTION.md)).
+
+**Scoring mode.** All of this applies only with `AI_GRADE=TRUE`. With `AI_GRADE=FALSE`
+no collaborative model is loaded, the scheduled `train_models` run is skipped, and
+deployed models stay untouched ([SCORING_MODES.md](SCORING_MODES.md)).
 
 ## 5. Evaluation (spec §25)
 

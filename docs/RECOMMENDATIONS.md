@@ -28,9 +28,13 @@ every tunable parameter. The code follows it one-to-one:
 | Discovery and player counts | `backend/app/services/discovery.py` |
 
 The engine code is pure Python with no database, network or clock access, so
-every number can be checked with synthetic data
-(`backend/tests/unit/test_recommendation_engine.py`). No language model is used
-anywhere.
+every number can be checked with synthetic data (the unit tests that did so,
+`backend/tests/unit/test_recommendation_engine.py`, are not in this repository). No
+language model is used anywhere.
+
+Which trained models are added on top of this baseline depends on `AI_GRADE`
+([SCORING_MODES.md](SCORING_MODES.md)). With `AI_GRADE=FALSE` the lists use exactly
+the formulas below and nothing else.
 
 All values below are **starting baselines** (spec §16: "configurable and
 subsequently evaluated against observed satisfaction"). Each profile and
@@ -210,7 +214,8 @@ Every sentence is built from data that moved the score.
 | `feature_conflict` | A negative contribution of 1 point or more (shown as a caution) |
 | `broad_match` | No single feature reaches 1 point, but the positive points add up to at least 1; names the two largest |
 | `similar_to_favourite` | Cosine similarity of at least 0.6 to a favourite |
-| `never_played`, `barely_played`, `dormant` | Library facts (owned category) |
+| `in_library`, `never_played`, `barely_played`, `dormant` | Library facts (owned category) |
+| `collaborative` | A deployed collaborative model ranks the game in the player's top 10% (weight ≥ 0.1); AI mode only ([COLLABORATIVE.md](COLLABORATIVE.md) §4) |
 | `trend_growth` | Measured growth versus the previous four weeks |
 | `unknown_preferences` | No contribution at all |
 

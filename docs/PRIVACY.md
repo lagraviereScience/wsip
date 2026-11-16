@@ -53,6 +53,24 @@ No passwords: sign-in is through Steam. No payment data.
 - **What a model keeps**: item (game) factors and parameters only, with **no
   per-user rows**. Users are folded in at serving time from their own data.
 
+## Retention
+
+A daily `prune_data` job (05:05 UTC, `app/services/retention.py`) deletes:
+
+| Data | After | Setting |
+|---|---|---|
+| Recommendation runs never shown (no event refers to them) | 24 hours | `UNSHOWN_RUN_RETENTION_HOURS` |
+| Other recommendation runs | 90 days | `RECOMMENDATION_RUN_RETENTION_DAYS` |
+| Behaviour events | 730 days | `EVENT_RETENTION_DAYS` (in `.env`) |
+| Model monitoring reports | 400 days | `MONITORING_RETENTION_DAYS` |
+
+The latest run per player and category is always kept. Raw player-count samples (not
+personal data) are kept 60 days. Expired or revoked sessions are deleted daily by
+`cleanup_sessions` (04:53 UTC). Ratings, feedback state, preferences and library data
+are kept until the account is deleted. A value of 0 keeps that data forever. Only
+`EVENT_RETENTION_DAYS` is passed through `docker-compose.yml`; the others use their
+defaults unless an `environment` entry is added.
+
 ## Account deletion
 
 1. One transaction deletes the account and every row tied to it. All foreign keys
@@ -82,12 +100,12 @@ No passwords: sign-in is through Steam. No payment data.
 1. **Legal basis and default** for using behaviour in global training. It is
    opt-out today; some jurisdictions may require opt-in consent (OPEN_QUESTIONS #25).
 2. Privacy policy:
-   - data categories, purposes and retention (events are currently kept until
-     account deletion);
+   - data categories, purposes and retention (see "Retention" above: events are kept
+     730 days by default);
    - backup retention;
    - processors (hosting).
 3. Steam Web API terms for storing and processing library data (OPEN_QUESTIONS #15).
 4. Data subject requests beyond self-service, such as a contact route and identity
    checks for players who lost access.
 5. Children's data: Steam accounts can belong to minors.
-6. Event retention: a time limit, or aggregation after N months.
+6. Event retention: 730 days today. Confirm the period, or aggregate after N months.

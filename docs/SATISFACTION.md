@@ -30,6 +30,11 @@ Until a model passes its gates:
 - recommendations are ranked by Match, exactly as before;
 - cards show "Match", never a percentage.
 
+With `AI_GRADE=FALSE` the model is never loaded, scheduled training (`train_models`)
+and monitoring (`monitor_models`) skip themselves, and the frontend ignores any stored
+prediction. A manual `python -m app.cli train` still runs in that mode
+([SCORING_MODES.md](SCORING_MODES.md)).
+
 ## 1. Labels: explicit satisfaction only
 
 | Source | Label | Weight |

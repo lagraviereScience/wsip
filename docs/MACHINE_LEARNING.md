@@ -54,6 +54,10 @@ feedback coverage), negative feedback, production calibration, online NDCG@5 and
 precision@5, coverage, diversity, training failures and drift.
 Administration: `python -m app.cli train | models | report | rollback | monitor | status`.
 
+All of this runs only with `AI_GRADE=TRUE`. With `AI_GRADE=FALSE` the scheduled training
+and monitoring tasks skip themselves and lists use content Match only
+([SCORING_MODES.md](SCORING_MODES.md)).
+
 ## Evaluation reports
 
 - Every training run: `training_runs.report` (JSON) and `<models>/reports/<kind>-<run>.md`.

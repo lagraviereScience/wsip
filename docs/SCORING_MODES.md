@@ -118,6 +118,9 @@ list from the same endpoint, or call `generate_all`, to respect the mode.
 
 ## Tests
 
+The test files below are referenced by the original test report but are **not in
+this repository**; the list records what was covered when the feature was built.
+
 - `backend/tests/unit/test_scoring_mode.py`:
   - default, case-insensitive and invalid values;
   - the configuration check;

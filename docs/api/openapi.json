@@ -1,0 +1,4804 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "What Do You Want to Play?",
+  "version": "0.1.0"
+ },
+ "paths": {
+  "/api/health/live": {
+   "get": {
+    "tags": [
+     "health"
+    ],
+    "summary": "Live",
+    "operationId": "live_api_health_live_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LivenessResponse"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/health/ready": {
+   "get": {
+    "tags": [
+     "health"
+    ],
+    "summary": "Ready",
+    "description": "Database, Redis and schema version checks (503 if any fails), plus the active\nrecommendation ``scoring_mode`` (\"ai\" or \"classic\", from AI_GRADE).",
+    "operationId": "ready_api_health_ready_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReadinessResponse"
+        }
+       }
+      }
+     },
+     "503": {
+      "description": "Service Unavailable",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReadinessResponse"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/auth/steam/login": {
+   "get": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Steam Login",
+    "operationId": "steam_login_api_auth_steam_login_get",
+    "parameters": [
+     {
+      "name": "next",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "maxLength": 200
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Next"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/auth/steam/callback": {
+   "get": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Steam Callback",
+    "operationId": "steam_callback_api_auth_steam_callback_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/auth/logout": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Logout",
+    "operationId": "logout_api_auth_logout_post",
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     }
+    }
+   }
+  },
+  "/api/auth/sessions": {
+   "get": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "List Sessions",
+    "description": "The signed-in user's active sessions (no tokens or hashes are exposed).",
+    "operationId": "list_sessions_api_auth_sessions_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/SessionOut"
+         },
+         "type": "array",
+         "title": "Response List Sessions Api Auth Sessions Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/auth/logout-others": {
+   "post": {
+    "tags": [
+     "auth"
+    ],
+    "summary": "Logout Others",
+    "description": "Sign out every other device; this session stays signed in.",
+    "operationId": "logout_others_api_auth_logout_others_post",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "integer"
+         },
+         "type": "object",
+         "title": "Response Logout Others Api Auth Logout Others Post"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me": {
+   "get": {
+    "tags": [
+     "me"
+    ],
+    "summary": "Get Me",
+    "operationId": "get_me_api_me_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MeOut"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "privacy"
+    ],
+    "summary": "Delete Account",
+    "description": "Permanently delete the account and all personal data. Requires\n``{\"confirm\": \"DELETE\"}``. Signs the browser out.",
+    "operationId": "delete_account_api_me_delete",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DeleteAccountIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/steam/sync": {
+   "post": {
+    "tags": [
+     "me"
+    ],
+    "summary": "Request Sync",
+    "description": "Re-check game-details visibility and re-import the library (onboarding retry).",
+    "operationId": "request_sync_api_me_steam_sync_post",
+    "responses": {
+     "202": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MeOut"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/library": {
+   "get": {
+    "tags": [
+     "me"
+    ],
+    "summary": "Get Library",
+    "operationId": "get_library_api_me_library_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LibraryOut"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/library/search": {
+   "get": {
+    "tags": [
+     "me"
+    ],
+    "summary": "Search Games",
+    "description": "Search Steam's store for games to add (results annotated with the user's state).",
+    "operationId": "search_games_api_me_library_search_get",
+    "parameters": [
+     {
+      "name": "q",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "minLength": 2,
+       "maxLength": 100,
+       "title": "Q"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SearchOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/library/games/{steam_appid}": {
+   "put": {
+    "tags": [
+     "me"
+    ],
+    "summary": "Set Game",
+    "description": "Set whether the user owns a game and their rating (null = not played / no opinion).",
+    "operationId": "set_game_api_me_library_games__steam_appid__put",
+    "parameters": [
+     {
+      "name": "steam_appid",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "maximum": 2147483647,
+       "minimum": 1,
+       "title": "Steam Appid"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/GameStateIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/GameStateOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/catalogue/taxonomy": {
+   "get": {
+    "tags": [
+     "catalogue"
+    ],
+    "summary": "Taxonomy",
+    "operationId": "taxonomy_api_catalogue_taxonomy_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "type": "object",
+         "title": "Response Taxonomy Api Catalogue Taxonomy Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/catalogue/features/{slug}/games": {
+   "get": {
+    "tags": [
+     "catalogue"
+    ],
+    "summary": "Games With Feature",
+    "description": "Games having the feature or any of its descendants (hierarchy-aware).",
+    "operationId": "games_with_feature_api_catalogue_features__slug__games_get",
+    "parameters": [
+     {
+      "name": "slug",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9-]{0,99}$",
+       "title": "Slug"
+      }
+     },
+     {
+      "name": "min_confidence",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "number",
+       "maximum": 1,
+       "minimum": 0,
+       "default": 0.3,
+       "title": "Min Confidence"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 200,
+       "minimum": 1,
+       "default": 50,
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": true,
+         "title": "Response Games With Feature Api Catalogue Features  Slug  Games Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/catalogue/games/{game_id}": {
+   "get": {
+    "tags": [
+     "catalogue"
+    ],
+    "summary": "Game Detail",
+    "operationId": "game_detail_api_catalogue_games__game_id__get",
+    "parameters": [
+     {
+      "name": "game_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "title": "Game Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": true,
+         "title": "Response Game Detail Api Catalogue Games  Game Id  Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/catalogue/providers": {
+   "get": {
+    "tags": [
+     "catalogue"
+    ],
+    "summary": "Providers",
+    "operationId": "providers_api_catalogue_providers_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "type": "object",
+         "title": "Response Providers Api Catalogue Providers Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/profile": {
+   "get": {
+    "tags": [
+     "recommendations"
+    ],
+    "summary": "Get Profile",
+    "operationId": "get_profile_api_me_profile_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProfileOut"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/preferences/{slug}": {
+   "put": {
+    "tags": [
+     "recommendations"
+    ],
+    "summary": "Set Preference",
+    "description": "Set a manual preference value and/or a hard exclusion for one canonical feature.",
+    "operationId": "set_preference_api_me_preferences__slug__put",
+    "parameters": [
+     {
+      "name": "slug",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 100,
+       "pattern": "^[a-z0-9-]+$",
+       "title": "Slug"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PreferenceIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FeaturePreferenceOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "tags": [
+     "recommendations"
+    ],
+    "summary": "Clear Preference",
+    "description": "Remove the manual value and exclusion; the inferred value applies again.",
+    "operationId": "clear_preference_api_me_preferences__slug__delete",
+    "parameters": [
+     {
+      "name": "slug",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 100,
+       "pattern": "^[a-z0-9-]+$",
+       "title": "Slug"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FeaturePreferenceOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/preferences/history": {
+   "get": {
+    "tags": [
+     "recommendations"
+    ],
+    "summary": "Preference History",
+    "operationId": "preference_history_api_me_preferences_history_get",
+    "parameters": [
+     {
+      "name": "feature",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "maxLength": 100,
+         "pattern": "^[a-z0-9-]+$"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Feature"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PreferenceHistoryOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/recommendations/{category}": {
+   "get": {
+    "tags": [
+     "recommendations"
+    ],
+    "summary": "Get Recommendations",
+    "description": "The latest list, built in the active scoring mode (``scoring_mode``: \"ai\" or\n\"classic\", from AI_GRADE; each ``run`` also carries its ``scoring_mode``,\n``config_version`` and ``algorithm``). A list built in the other mode is never\nreturned: the answer is ``status: \"pending\"`` while it is rebuilt. ``limit``\nreturns only the first N items (``total`` still counts all of them).",
+    "operationId": "get_recommendations_api_me_recommendations__category__get",
+    "parameters": [
+     {
+      "name": "category",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "enum": [
+        "owned",
+        "unowned",
+        "trending"
+       ],
+       "type": "string",
+       "title": "Category"
+      }
+     },
+     {
+      "name": "max_price_cents",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "maximum": 1000000,
+         "minimum": 0
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Max Price Cents"
+      }
+     },
+     {
+      "name": "free_only",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "title": "Free Only"
+      }
+     },
+     {
+      "name": "min_review_pct",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "maximum": 100,
+         "minimum": 0
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Min Review Pct"
+      }
+     },
+     {
+      "name": "released_after",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "maximum": 2100,
+         "minimum": 1970
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Released After"
+      }
+     },
+     {
+      "name": "released_before",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "maximum": 2100,
+         "minimum": 1970
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Released Before"
+      }
+     },
+     {
+      "name": "players",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "enum": [
+        "any",
+        "multiplayer",
+        "singleplayer"
+       ],
+       "type": "string",
+       "default": "any",
+       "title": "Players"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "maximum": 100,
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Limit"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RecommendationsOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/recommendations/refresh": {
+   "post": {
+    "tags": [
+     "recommendations"
+    ],
+    "summary": "Refresh",
+    "description": "Rebuild profile and recommendations now (at most once a minute).",
+    "operationId": "refresh_api_me_recommendations_refresh_post",
+    "responses": {
+     "202": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": {
+          "type": "boolean"
+         },
+         "type": "object",
+         "title": "Response Refresh Api Me Recommendations Refresh Post"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/events": {
+   "post": {
+    "tags": [
+     "feedback"
+    ],
+    "summary": "Post Events",
+    "description": "Impressions (actually visible cards), clicks, game page views, store visits.",
+    "operationId": "post_events_api_me_events_post",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/EventsIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "202": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EventsOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "feedback"
+    ],
+    "summary": "Get Events",
+    "description": "The user's own event history, newest first.",
+    "operationId": "get_events_api_me_events_get",
+    "parameters": [
+     {
+      "name": "before",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer",
+         "minimum": 1
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Before"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 200,
+       "minimum": 1,
+       "default": 50,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "feedback_only",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "title": "Feedback Only"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EventHistoryOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/games/{game_id}/feedback/{kind}": {
+   "put": {
+    "tags": [
+     "feedback"
+    ],
+    "summary": "Set Feedback",
+    "description": "Turn one kind of feedback on (``on: true``) or undo it (``on: false``).",
+    "operationId": "set_feedback_api_me_games__game_id__feedback__kind__put",
+    "parameters": [
+     {
+      "name": "game_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "maximum": 4611686018427387904,
+       "minimum": 1,
+       "title": "Game Id"
+      }
+     },
+     {
+      "name": "kind",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "enum": [
+        "like",
+        "dislike",
+        "favourite",
+        "save_for_later",
+        "not_interested",
+        "not_my_type",
+        "already_played"
+       ],
+       "type": "string",
+       "title": "Kind"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReactionIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/GameFeedbackOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/games/{game_id}/satisfaction": {
+   "put": {
+    "tags": [
+     "feedback"
+    ],
+    "summary": "Set Satisfaction",
+    "description": "\"Did you enjoy this game?\" Loved (2) ... Hated (-2); null clears the answer.",
+    "operationId": "set_satisfaction_api_me_games__game_id__satisfaction_put",
+    "parameters": [
+     {
+      "name": "game_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "maximum": 4611686018427387904,
+       "minimum": 1,
+       "title": "Game Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SatisfactionIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/GameFeedbackOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/feedback": {
+   "get": {
+    "tags": [
+     "feedback"
+    ],
+    "summary": "List Feedback",
+    "description": "Every game the user reacted to or rated from a recommendation, to review or undo.",
+    "operationId": "list_feedback_api_me_feedback_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/FeedbackListOut"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/satisfaction-prompt": {
+   "get": {
+    "tags": [
+     "feedback"
+    ],
+    "summary": "Get Prompt",
+    "operationId": "get_prompt_api_me_satisfaction_prompt_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PromptStatusOut"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/satisfaction-prompt/{game_id}": {
+   "post": {
+    "tags": [
+     "feedback"
+    ],
+    "summary": "Prompt Action",
+    "description": "Record that the question was shown, snoozed (\"Not now\") or declined.",
+    "operationId": "prompt_action_api_me_satisfaction_prompt__game_id__post",
+    "parameters": [
+     {
+      "name": "game_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "maximum": 4611686018427387904,
+       "minimum": 1,
+       "title": "Game Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PromptActionIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/games/{game_id}": {
+   "get": {
+    "tags": [
+     "feedback"
+    ],
+    "summary": "Game Page",
+    "operationId": "game_page_api_me_games__game_id__get",
+    "parameters": [
+     {
+      "name": "game_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "maximum": 4611686018427387904,
+       "minimum": 1,
+       "title": "Game Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/GamePageOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/privacy": {
+   "get": {
+    "tags": [
+     "privacy"
+    ],
+    "summary": "Get Privacy",
+    "operationId": "get_privacy_api_me_privacy_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PrivacyOut"
+        }
+       }
+      }
+     }
+    }
+   },
+   "put": {
+    "tags": [
+     "privacy"
+    ],
+    "summary": "Set Privacy",
+    "description": "Opting out of global training takes effect from the next training run: the\nuser's data is never read into a training dataset while opted out.",
+    "operationId": "set_privacy_api_me_privacy_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/PrivacyIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PrivacyOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/me/export": {
+   "get": {
+    "tags": [
+     "privacy"
+    ],
+    "summary": "Export Data",
+    "description": "Download everything stored about the account, as JSON.",
+    "operationId": "export_data_api_me_export_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "ComponentHealth": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "ok",
+       "fail"
+      ],
+      "title": "Status"
+     },
+     "latency_ms": {
+      "type": "number",
+      "title": "Latency Ms"
+     }
+    },
+    "type": "object",
+    "required": [
+     "status",
+     "latency_ms"
+    ],
+    "title": "ComponentHealth"
+   },
+   "ContributionOut": {
+    "properties": {
+     "feature": {
+      "type": "string",
+      "title": "Feature"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "group": {
+      "type": "string",
+      "title": "Group"
+     },
+     "game_features": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Game Features"
+     },
+     "preference": {
+      "type": "number",
+      "title": "Preference"
+     },
+     "preference_confidence": {
+      "type": "number",
+      "title": "Preference Confidence"
+     },
+     "origin": {
+      "type": "string",
+      "enum": [
+       "inferred",
+       "manual"
+      ],
+      "title": "Origin"
+     },
+     "game_value": {
+      "type": "number",
+      "title": "Game Value"
+     },
+     "metadata_confidence": {
+      "type": "number",
+      "title": "Metadata Confidence"
+     },
+     "points": {
+      "type": "number",
+      "title": "Points"
+     }
+    },
+    "type": "object",
+    "required": [
+     "feature",
+     "name",
+     "group",
+     "game_features",
+     "preference",
+     "preference_confidence",
+     "origin",
+     "game_value",
+     "metadata_confidence",
+     "points"
+    ],
+    "title": "ContributionOut"
+   },
+   "DeleteAccountIn": {
+    "properties": {
+     "confirm": {
+      "type": "string",
+      "const": "DELETE",
+      "title": "Confirm"
+     }
+    },
+    "type": "object",
+    "required": [
+     "confirm"
+    ],
+    "title": "DeleteAccountIn"
+   },
+   "EventHistoryOut": {
+    "properties": {
+     "events": {
+      "items": {
+       "$ref": "#/components/schemas/EventOut"
+      },
+      "type": "array",
+      "title": "Events"
+     },
+     "next_before": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Next Before"
+     }
+    },
+    "type": "object",
+    "required": [
+     "events",
+     "next_before"
+    ],
+    "title": "EventHistoryOut"
+   },
+   "EventIn": {
+    "properties": {
+     "recommendation_run_id": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "minimum": 1.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Recommendation Run Id"
+     },
+     "position": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 1000.0,
+        "minimum": 1.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Position"
+     },
+     "surface": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "dashboard",
+         "play",
+         "buy",
+         "trending",
+         "game_page",
+         "profile",
+         "library"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Surface"
+     },
+     "type": {
+      "type": "string",
+      "enum": [
+       "impression",
+       "click",
+       "detail_view",
+       "store_visit"
+      ],
+      "title": "Type"
+     },
+     "game_id": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Game Id"
+     },
+     "idempotency_key": {
+      "type": "string",
+      "maxLength": 100,
+      "minLength": 8,
+      "pattern": "^[A-Za-z0-9:_.\\-]+$",
+      "title": "Idempotency Key"
+     },
+     "occurred_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Occurred At"
+     },
+     "context": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "anyOf": [
+          {
+           "type": "integer"
+          },
+          {
+           "type": "number"
+          },
+          {
+           "type": "boolean"
+          },
+          {
+           "type": "string"
+          }
+         ]
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "type",
+     "game_id",
+     "idempotency_key"
+    ],
+    "title": "EventIn"
+   },
+   "EventOut": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "event_type": {
+      "type": "string",
+      "title": "Event Type"
+     },
+     "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Occurred At"
+     },
+     "game_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Game Id"
+     },
+     "game_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Game Name"
+     },
+     "feature": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Feature"
+     },
+     "category": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Category"
+     },
+     "position": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Position"
+     },
+     "model_version": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model Version"
+     },
+     "surface": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Surface"
+     },
+     "metadata": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Metadata"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "event_type",
+     "occurred_at",
+     "game_id",
+     "game_name",
+     "feature",
+     "category",
+     "position",
+     "model_version",
+     "surface",
+     "metadata"
+    ],
+    "title": "EventOut"
+   },
+   "EventsIn": {
+    "properties": {
+     "events": {
+      "items": {
+       "$ref": "#/components/schemas/EventIn"
+      },
+      "type": "array",
+      "maxItems": 100,
+      "minItems": 1,
+      "title": "Events"
+     }
+    },
+    "type": "object",
+    "required": [
+     "events"
+    ],
+    "title": "EventsIn"
+   },
+   "EventsOut": {
+    "properties": {
+     "accepted": {
+      "type": "integer",
+      "title": "Accepted"
+     },
+     "duplicates": {
+      "type": "integer",
+      "title": "Duplicates"
+     },
+     "rejected": {
+      "type": "integer",
+      "title": "Rejected"
+     }
+    },
+    "type": "object",
+    "required": [
+     "accepted",
+     "duplicates",
+     "rejected"
+    ],
+    "title": "EventsOut"
+   },
+   "EvidenceGameOut": {
+    "properties": {
+     "game_id": {
+      "type": "integer",
+      "title": "Game Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "capsule_image_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Capsule Image Url"
+     },
+     "playtime_minutes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Playtime Minutes"
+     },
+     "rating": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rating"
+     }
+    },
+    "type": "object",
+    "required": [
+     "game_id",
+     "name",
+     "capsule_image_url",
+     "playtime_minutes",
+     "rating"
+    ],
+    "title": "EvidenceGameOut"
+   },
+   "FeatureHistoryPointOut": {
+    "properties": {
+     "computed_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Computed At"
+     },
+     "value": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value"
+     },
+     "confidence": {
+      "type": "number",
+      "title": "Confidence"
+     },
+     "historical": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Historical"
+     },
+     "recent": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Recent"
+     },
+     "satisfaction": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Satisfaction"
+     }
+    },
+    "type": "object",
+    "required": [
+     "computed_at",
+     "value",
+     "confidence",
+     "historical",
+     "recent",
+     "satisfaction"
+    ],
+    "title": "FeatureHistoryPointOut"
+   },
+   "FeaturePreferenceOut": {
+    "properties": {
+     "slug": {
+      "type": "string",
+      "title": "Slug"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "category": {
+      "type": "string",
+      "title": "Category"
+     },
+     "category_name": {
+      "type": "string",
+      "title": "Category Name"
+     },
+     "group": {
+      "type": "string",
+      "title": "Group"
+     },
+     "parent": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Parent"
+     },
+     "value": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value"
+     },
+     "confidence": {
+      "type": "number",
+      "title": "Confidence"
+     },
+     "origin": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "inferred",
+         "manual"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Origin"
+     },
+     "excluded": {
+      "type": "boolean",
+      "title": "Excluded"
+     },
+     "inferred": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/InferredOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "manual": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ManualOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "minutes_lifetime": {
+      "type": "integer",
+      "title": "Minutes Lifetime"
+     },
+     "minutes_recent": {
+      "type": "integer",
+      "title": "Minutes Recent"
+     },
+     "evidence": {
+      "items": {
+       "$ref": "#/components/schemas/EvidenceGameOut"
+      },
+      "type": "array",
+      "title": "Evidence"
+     }
+    },
+    "type": "object",
+    "required": [
+     "slug",
+     "name",
+     "category",
+     "category_name",
+     "group",
+     "parent",
+     "value",
+     "confidence",
+     "origin",
+     "excluded",
+     "inferred",
+     "manual",
+     "minutes_lifetime",
+     "minutes_recent",
+     "evidence"
+    ],
+    "title": "FeaturePreferenceOut"
+   },
+   "FeedbackGameOut": {
+    "properties": {
+     "game_id": {
+      "type": "integer",
+      "title": "Game Id"
+     },
+     "reaction": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "like",
+         "dislike"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reaction"
+     },
+     "favourite": {
+      "type": "boolean",
+      "title": "Favourite",
+      "default": false
+     },
+     "saved": {
+      "type": "boolean",
+      "title": "Saved",
+      "default": false
+     },
+     "dismissal": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "not_interested",
+         "not_my_type"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Dismissal"
+     },
+     "dismissal_reason": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "price",
+         "timing",
+         "owned_elsewhere",
+         "other"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Dismissal Reason"
+     },
+     "already_played": {
+      "type": "boolean",
+      "title": "Already Played",
+      "default": false
+     },
+     "rating": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rating"
+     },
+     "rating_source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rating Source"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "steam_appid": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Steam Appid"
+     },
+     "capsule_image_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Capsule Image Url"
+     },
+     "owned": {
+      "type": "boolean",
+      "title": "Owned"
+     },
+     "updated_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Updated At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "game_id",
+     "name",
+     "steam_appid",
+     "capsule_image_url",
+     "owned",
+     "updated_at"
+    ],
+    "title": "FeedbackGameOut"
+   },
+   "FeedbackListOut": {
+    "properties": {
+     "games": {
+      "items": {
+       "$ref": "#/components/schemas/FeedbackGameOut"
+      },
+      "type": "array",
+      "title": "Games"
+     }
+    },
+    "type": "object",
+    "required": [
+     "games"
+    ],
+    "title": "FeedbackListOut"
+   },
+   "GameFeedbackOut": {
+    "properties": {
+     "game_id": {
+      "type": "integer",
+      "title": "Game Id"
+     },
+     "reaction": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "like",
+         "dislike"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reaction"
+     },
+     "favourite": {
+      "type": "boolean",
+      "title": "Favourite",
+      "default": false
+     },
+     "saved": {
+      "type": "boolean",
+      "title": "Saved",
+      "default": false
+     },
+     "dismissal": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "not_interested",
+         "not_my_type"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Dismissal"
+     },
+     "dismissal_reason": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "price",
+         "timing",
+         "owned_elsewhere",
+         "other"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Dismissal Reason"
+     },
+     "already_played": {
+      "type": "boolean",
+      "title": "Already Played",
+      "default": false
+     },
+     "rating": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rating"
+     },
+     "rating_source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rating Source"
+     }
+    },
+    "type": "object",
+    "required": [
+     "game_id"
+    ],
+    "title": "GameFeedbackOut"
+   },
+   "GamePageOut": {
+    "properties": {
+     "game_id": {
+      "type": "integer",
+      "title": "Game Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "steam_appid": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Steam Appid"
+     },
+     "header_image_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Header Image Url"
+     },
+     "short_description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Short Description"
+     },
+     "release_date": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Release Date"
+     },
+     "tags": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Tags"
+     },
+     "owned": {
+      "type": "boolean",
+      "title": "Owned"
+     },
+     "playtime_minutes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Playtime Minutes"
+     },
+     "feedback": {
+      "$ref": "#/components/schemas/GameFeedbackOut"
+     },
+     "match": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Match"
+     },
+     "confidence_label": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "low",
+         "medium",
+         "high"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Confidence Label"
+     },
+     "reasons": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array",
+      "title": "Reasons"
+     },
+     "contributions": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array",
+      "title": "Contributions"
+     },
+     "recommendation_run_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Recommendation Run Id"
+     },
+     "category": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Category"
+     },
+     "rank": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rank"
+     },
+     "review": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Review"
+     },
+     "price": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Price"
+     },
+     "completion": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Completion"
+     },
+     "sources": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "type": "array",
+      "title": "Sources",
+      "default": []
+     }
+    },
+    "type": "object",
+    "required": [
+     "game_id",
+     "name",
+     "steam_appid",
+     "header_image_url",
+     "short_description",
+     "release_date",
+     "tags",
+     "owned",
+     "playtime_minutes",
+     "feedback",
+     "match",
+     "confidence_label",
+     "reasons",
+     "contributions",
+     "recommendation_run_id",
+     "category",
+     "rank",
+     "review",
+     "price"
+    ],
+    "title": "GamePageOut"
+   },
+   "GameStateIn": {
+    "properties": {
+     "owned": {
+      "type": "boolean",
+      "title": "Owned"
+     },
+     "rating": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 2.0,
+        "minimum": -2.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rating"
+     }
+    },
+    "type": "object",
+    "required": [
+     "owned"
+    ],
+    "title": "GameStateIn"
+   },
+   "GameStateOut": {
+    "properties": {
+     "game_id": {
+      "type": "integer",
+      "title": "Game Id"
+     },
+     "steam_appid": {
+      "type": "integer",
+      "title": "Steam Appid"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "owned": {
+      "type": "boolean",
+      "title": "Owned"
+     },
+     "rating": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rating"
+     }
+    },
+    "type": "object",
+    "required": [
+     "game_id",
+     "steam_appid",
+     "name",
+     "owned",
+     "rating"
+    ],
+    "title": "GameStateOut"
+   },
+   "GroupScoreOut": {
+    "properties": {
+     "group": {
+      "type": "string",
+      "title": "Group"
+     },
+     "weight": {
+      "type": "number",
+      "title": "Weight"
+     },
+     "score": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Score"
+     },
+     "reliability": {
+      "type": "number",
+      "title": "Reliability"
+     },
+     "evidence": {
+      "type": "number",
+      "title": "Evidence"
+     }
+    },
+    "type": "object",
+    "required": [
+     "group",
+     "weight",
+     "score",
+     "reliability",
+     "evidence"
+    ],
+    "title": "GroupScoreOut"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "InferredOut": {
+    "properties": {
+     "value": {
+      "type": "number",
+      "title": "Value"
+     },
+     "confidence": {
+      "type": "number",
+      "title": "Confidence"
+     },
+     "historical": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Historical"
+     },
+     "historical_confidence": {
+      "type": "number",
+      "title": "Historical Confidence"
+     },
+     "recent": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Recent"
+     },
+     "recent_confidence": {
+      "type": "number",
+      "title": "Recent Confidence"
+     },
+     "satisfaction": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Satisfaction"
+     },
+     "satisfaction_confidence": {
+      "type": "number",
+      "title": "Satisfaction Confidence"
+     },
+     "feedback": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Feedback"
+     },
+     "feedback_confidence": {
+      "type": "number",
+      "title": "Feedback Confidence",
+      "default": 0.0
+     }
+    },
+    "type": "object",
+    "required": [
+     "value",
+     "confidence",
+     "historical",
+     "historical_confidence",
+     "recent",
+     "recent_confidence",
+     "satisfaction",
+     "satisfaction_confidence"
+    ],
+    "title": "InferredOut"
+   },
+   "LibraryGameOut": {
+    "properties": {
+     "game_id": {
+      "type": "integer",
+      "title": "Game Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "steam_appid": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Steam Appid"
+     },
+     "header_image_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Header Image Url"
+     },
+     "capsule_image_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Capsule Image Url"
+     },
+     "game_type": {
+      "type": "string",
+      "title": "Game Type"
+     },
+     "release_date": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Release Date"
+     },
+     "owned": {
+      "type": "boolean",
+      "title": "Owned"
+     },
+     "ownership_source": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "steam_import",
+         "manual"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ownership Source"
+     },
+     "rating": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rating"
+     },
+     "playtime_forever_minutes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Playtime Forever Minutes"
+     },
+     "playtime_2weeks_minutes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Playtime 2Weeks Minutes"
+     },
+     "last_played_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Played At"
+     },
+     "achievements_achieved": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Achievements Achieved"
+     },
+     "achievements_total": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Achievements Total"
+     },
+     "review_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Review Label"
+     },
+     "top_features": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Top Features"
+     }
+    },
+    "type": "object",
+    "required": [
+     "game_id",
+     "name",
+     "steam_appid",
+     "header_image_url",
+     "capsule_image_url",
+     "game_type",
+     "release_date",
+     "owned",
+     "ownership_source",
+     "rating",
+     "playtime_forever_minutes",
+     "playtime_2weeks_minutes",
+     "last_played_at",
+     "achievements_achieved",
+     "achievements_total",
+     "review_label",
+     "top_features"
+    ],
+    "title": "LibraryGameOut"
+   },
+   "LibraryOut": {
+    "properties": {
+     "games": {
+      "items": {
+       "$ref": "#/components/schemas/LibraryGameOut"
+      },
+      "type": "array",
+      "title": "Games"
+     },
+     "attribution": {
+      "type": "string",
+      "title": "Attribution",
+      "default": "Game data provided by Steam."
+     }
+    },
+    "type": "object",
+    "required": [
+     "games"
+    ],
+    "title": "LibraryOut"
+   },
+   "LibraryStatsOut": {
+    "properties": {
+     "games_owned": {
+      "type": "integer",
+      "title": "Games Owned"
+     },
+     "games_played": {
+      "type": "integer",
+      "title": "Games Played"
+     },
+     "games_rated": {
+      "type": "integer",
+      "title": "Games Rated"
+     },
+     "total_playtime_minutes": {
+      "type": "integer",
+      "title": "Total Playtime Minutes"
+     },
+     "recent_playtime_minutes": {
+      "type": "integer",
+      "title": "Recent Playtime Minutes"
+     }
+    },
+    "type": "object",
+    "required": [
+     "games_owned",
+     "games_played",
+     "games_rated",
+     "total_playtime_minutes",
+     "recent_playtime_minutes"
+    ],
+    "title": "LibraryStatsOut"
+   },
+   "LivenessResponse": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "const": "ok",
+      "title": "Status",
+      "default": "ok"
+     },
+     "service": {
+      "type": "string",
+      "title": "Service"
+     },
+     "version": {
+      "type": "string",
+      "title": "Version"
+     }
+    },
+    "type": "object",
+    "required": [
+     "service",
+     "version"
+    ],
+    "title": "LivenessResponse"
+   },
+   "ManualOut": {
+    "properties": {
+     "value": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value"
+     },
+     "excluded": {
+      "type": "boolean",
+      "title": "Excluded"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "value",
+     "excluded",
+     "updated_at"
+    ],
+    "title": "ManualOut"
+   },
+   "MeOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "format": "uuid",
+      "title": "Id"
+     },
+     "display_name": {
+      "type": "string",
+      "title": "Display Name"
+     },
+     "avatar_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Avatar Url"
+     },
+     "steam": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SteamConnectionOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "latest_sync": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/SyncRunOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "library": {
+      "$ref": "#/components/schemas/LibraryStatsOut"
+     },
+     "library_mode": {
+      "type": "string",
+      "enum": [
+       "manual",
+       "steam_import"
+      ],
+      "title": "Library Mode"
+     },
+     "min_rated_games": {
+      "type": "integer",
+      "title": "Min Rated Games"
+     },
+     "profile_ready": {
+      "type": "boolean",
+      "title": "Profile Ready"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "display_name",
+     "avatar_url",
+     "steam",
+     "latest_sync",
+     "library",
+     "library_mode",
+     "min_rated_games",
+     "profile_ready"
+    ],
+    "title": "MeOut"
+   },
+   "ModeBalanceOut": {
+    "properties": {
+     "singleplayer_minutes": {
+      "type": "integer",
+      "title": "Singleplayer Minutes"
+     },
+     "multiplayer_minutes": {
+      "type": "integer",
+      "title": "Multiplayer Minutes"
+     },
+     "singleplayer_share": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Singleplayer Share"
+     }
+    },
+    "type": "object",
+    "required": [
+     "singleplayer_minutes",
+     "multiplayer_minutes",
+     "singleplayer_share"
+    ],
+    "title": "ModeBalanceOut"
+   },
+   "PopularNowOut": {
+    "properties": {
+     "game_id": {
+      "type": "integer",
+      "title": "Game Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "steam_appid": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Steam Appid"
+     },
+     "capsule_image_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Capsule Image Url"
+     },
+     "players": {
+      "type": "integer",
+      "title": "Players"
+     },
+     "sampled_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Sampled At"
+     },
+     "satisfaction_score": {
+      "type": "number",
+      "title": "Satisfaction Score"
+     },
+     "confidence_label": {
+      "type": "string",
+      "enum": [
+       "low",
+       "medium",
+       "high"
+      ],
+      "title": "Confidence Label"
+     },
+     "reasons": {
+      "items": {
+       "$ref": "#/components/schemas/ReasonOut"
+      },
+      "type": "array",
+      "title": "Reasons"
+     }
+    },
+    "type": "object",
+    "required": [
+     "game_id",
+     "name",
+     "steam_appid",
+     "capsule_image_url",
+     "players",
+     "sampled_at",
+     "satisfaction_score",
+     "confidence_label",
+     "reasons"
+    ],
+    "title": "PopularNowOut"
+   },
+   "PreferenceEventOut": {
+    "properties": {
+     "feature": {
+      "type": "string",
+      "title": "Feature"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "old_value": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Old Value"
+     },
+     "new_value": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "New Value"
+     },
+     "old_excluded": {
+      "type": "boolean",
+      "title": "Old Excluded"
+     },
+     "new_excluded": {
+      "type": "boolean",
+      "title": "New Excluded"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "feature",
+     "name",
+     "old_value",
+     "new_value",
+     "old_excluded",
+     "new_excluded",
+     "created_at"
+    ],
+    "title": "PreferenceEventOut"
+   },
+   "PreferenceHistoryOut": {
+    "properties": {
+     "manual_changes": {
+      "items": {
+       "$ref": "#/components/schemas/PreferenceEventOut"
+      },
+      "type": "array",
+      "title": "Manual Changes"
+     },
+     "feature": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Feature"
+     },
+     "inferred_history": {
+      "items": {
+       "$ref": "#/components/schemas/FeatureHistoryPointOut"
+      },
+      "type": "array",
+      "title": "Inferred History",
+      "default": []
+     }
+    },
+    "type": "object",
+    "required": [
+     "manual_changes"
+    ],
+    "title": "PreferenceHistoryOut"
+   },
+   "PreferenceIn": {
+    "properties": {
+     "value": {
+      "anyOf": [
+       {
+        "type": "number",
+        "maximum": 1.0,
+        "minimum": -1.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value"
+     },
+     "excluded": {
+      "type": "boolean",
+      "title": "Excluded",
+      "default": false
+     }
+    },
+    "type": "object",
+    "title": "PreferenceIn",
+    "description": "value: -1..1 or null (no manual value); excluded: hard exclusion."
+   },
+   "PriceOut": {
+    "properties": {
+     "is_free": {
+      "type": "boolean",
+      "title": "Is Free"
+     },
+     "final_cents": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Final Cents"
+     },
+     "original_cents": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Original Cents"
+     },
+     "discount_pct": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Discount Pct"
+     },
+     "formatted_final": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Formatted Final"
+     },
+     "formatted_original": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Formatted Original"
+     },
+     "country": {
+      "type": "string",
+      "title": "Country"
+     },
+     "fetched_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Fetched At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "is_free",
+     "final_cents",
+     "original_cents",
+     "discount_pct",
+     "formatted_final",
+     "formatted_original",
+     "country",
+     "fetched_at"
+    ],
+    "title": "PriceOut"
+   },
+   "PrivacyIn": {
+    "properties": {
+     "contribute_to_global_training": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Contribute To Global Training"
+     },
+     "allow_scheduled_sync": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Allow Scheduled Sync"
+     }
+    },
+    "type": "object",
+    "title": "PrivacyIn"
+   },
+   "PrivacyOut": {
+    "properties": {
+     "contribute_to_global_training": {
+      "type": "boolean",
+      "title": "Contribute To Global Training"
+     },
+     "allow_scheduled_sync": {
+      "type": "boolean",
+      "title": "Allow Scheduled Sync"
+     },
+     "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Updated At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "contribute_to_global_training",
+     "allow_scheduled_sync",
+     "updated_at"
+    ],
+    "title": "PrivacyOut"
+   },
+   "ProfileOut": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "ready",
+       "pending"
+      ],
+      "title": "Status"
+     },
+     "run": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ProfileRunOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "features": {
+      "items": {
+       "$ref": "#/components/schemas/FeaturePreferenceOut"
+      },
+      "type": "array",
+      "title": "Features"
+     },
+     "mode_balance": {
+      "$ref": "#/components/schemas/ModeBalanceOut"
+     },
+     "influential_games": {
+      "items": {
+       "$ref": "#/components/schemas/EvidenceGameOut"
+      },
+      "type": "array",
+      "title": "Influential Games"
+     }
+    },
+    "type": "object",
+    "required": [
+     "status",
+     "run",
+     "features",
+     "mode_balance",
+     "influential_games"
+    ],
+    "title": "ProfileOut"
+   },
+   "ProfileRunOut": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "params_version": {
+      "type": "string",
+      "title": "Params Version"
+     },
+     "games_considered": {
+      "type": "integer",
+      "title": "Games Considered"
+     },
+     "games_with_metadata": {
+      "type": "integer",
+      "title": "Games With Metadata"
+     },
+     "games_played": {
+      "type": "integer",
+      "title": "Games Played"
+     },
+     "games_rated": {
+      "type": "integer",
+      "title": "Games Rated"
+     },
+     "features_inferred": {
+      "type": "integer",
+      "title": "Features Inferred"
+     },
+     "confidence": {
+      "type": "number",
+      "title": "Confidence"
+     },
+     "total_minutes": {
+      "type": "integer",
+      "title": "Total Minutes"
+     },
+     "recent_minutes": {
+      "type": "integer",
+      "title": "Recent Minutes"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "created_at",
+     "params_version",
+     "games_considered",
+     "games_with_metadata",
+     "games_played",
+     "games_rated",
+     "features_inferred",
+     "confidence",
+     "total_minutes",
+     "recent_minutes"
+    ],
+    "title": "ProfileRunOut"
+   },
+   "PromptActionIn": {
+    "properties": {
+     "action": {
+      "type": "string",
+      "enum": [
+       "shown",
+       "snooze",
+       "decline"
+      ],
+      "title": "Action"
+     }
+    },
+    "type": "object",
+    "required": [
+     "action"
+    ],
+    "title": "PromptActionIn"
+   },
+   "PromptOut": {
+    "properties": {
+     "game_id": {
+      "type": "integer",
+      "title": "Game Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "capsule_image_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Capsule Image Url"
+     },
+     "minutes_since_recommended": {
+      "type": "integer",
+      "title": "Minutes Since Recommended"
+     },
+     "question": {
+      "type": "string",
+      "title": "Question"
+     }
+    },
+    "type": "object",
+    "required": [
+     "game_id",
+     "name",
+     "capsule_image_url",
+     "minutes_since_recommended",
+     "question"
+    ],
+    "title": "PromptOut"
+   },
+   "PromptStatusOut": {
+    "properties": {
+     "prompt": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/PromptOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "type": "object",
+    "required": [
+     "prompt"
+    ],
+    "title": "PromptStatusOut"
+   },
+   "ReactionIn": {
+    "properties": {
+     "recommendation_run_id": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "minimum": 1.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Recommendation Run Id"
+     },
+     "position": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 1000.0,
+        "minimum": 1.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Position"
+     },
+     "surface": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "dashboard",
+         "play",
+         "buy",
+         "trending",
+         "game_page",
+         "profile",
+         "library"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Surface"
+     },
+     "on": {
+      "type": "boolean",
+      "title": "On",
+      "default": true
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "price",
+         "timing",
+         "owned_elsewhere",
+         "other"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     }
+    },
+    "type": "object",
+    "title": "ReactionIn"
+   },
+   "ReadinessResponse": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "ok",
+       "unavailable"
+      ],
+      "title": "Status"
+     },
+     "checks": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/ComponentHealth"
+      },
+      "type": "object",
+      "title": "Checks"
+     },
+     "scoring_mode": {
+      "type": "string",
+      "enum": [
+       "ai",
+       "classic"
+      ],
+      "title": "Scoring Mode"
+     }
+    },
+    "type": "object",
+    "required": [
+     "status",
+     "checks",
+     "scoring_mode"
+    ],
+    "title": "ReadinessResponse"
+   },
+   "ReasonOut": {
+    "properties": {
+     "code": {
+      "type": "string",
+      "title": "Code"
+     },
+     "text": {
+      "type": "string",
+      "title": "Text"
+     },
+     "polarity": {
+      "type": "string",
+      "enum": [
+       "positive",
+       "negative",
+       "info"
+      ],
+      "title": "Polarity"
+     },
+     "feature": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Feature"
+     },
+     "points": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Points"
+     }
+    },
+    "type": "object",
+    "required": [
+     "code",
+     "text",
+     "polarity"
+    ],
+    "title": "ReasonOut"
+   },
+   "RecommendationOut": {
+    "properties": {
+     "rank": {
+      "type": "integer",
+      "title": "Rank"
+     },
+     "game_id": {
+      "type": "integer",
+      "title": "Game Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "steam_appid": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Steam Appid"
+     },
+     "header_image_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Header Image Url"
+     },
+     "capsule_image_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Capsule Image Url"
+     },
+     "short_description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Short Description"
+     },
+     "release_date": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Release Date"
+     },
+     "owned": {
+      "type": "boolean",
+      "title": "Owned"
+     },
+     "playtime_minutes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Playtime Minutes"
+     },
+     "last_played_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Played At"
+     },
+     "score": {
+      "type": "number",
+      "title": "Score"
+     },
+     "satisfaction_score": {
+      "type": "number",
+      "title": "Satisfaction Score"
+     },
+     "backlog_score": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Backlog Score"
+     },
+     "trend_score": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Trend Score"
+     },
+     "confidence": {
+      "type": "number",
+      "title": "Confidence"
+     },
+     "confidence_label": {
+      "type": "string",
+      "enum": [
+       "low",
+       "medium",
+       "high"
+      ],
+      "title": "Confidence Label"
+     },
+     "metadata_confidence": {
+      "type": "number",
+      "title": "Metadata Confidence"
+     },
+     "group_scores": {
+      "items": {
+       "$ref": "#/components/schemas/GroupScoreOut"
+      },
+      "type": "array",
+      "title": "Group Scores"
+     },
+     "contributions": {
+      "items": {
+       "$ref": "#/components/schemas/ContributionOut"
+      },
+      "type": "array",
+      "title": "Contributions"
+     },
+     "reasons": {
+      "items": {
+       "$ref": "#/components/schemas/ReasonOut"
+      },
+      "type": "array",
+      "title": "Reasons"
+     },
+     "candidate_sources": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Candidate Sources"
+     },
+     "tags": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Tags"
+     },
+     "review": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ReviewOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "price": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/PriceOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "collaborative_score": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Collaborative Score"
+     },
+     "predicted_satisfaction": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Predicted Satisfaction"
+     },
+     "feedback": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/GameFeedbackOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "type": "object",
+    "required": [
+     "rank",
+     "game_id",
+     "name",
+     "steam_appid",
+     "header_image_url",
+     "capsule_image_url",
+     "short_description",
+     "release_date",
+     "owned",
+     "playtime_minutes",
+     "last_played_at",
+     "score",
+     "satisfaction_score",
+     "backlog_score",
+     "trend_score",
+     "confidence",
+     "confidence_label",
+     "metadata_confidence",
+     "group_scores",
+     "contributions",
+     "reasons",
+     "candidate_sources",
+     "tags",
+     "review",
+     "price"
+    ],
+    "title": "RecommendationOut"
+   },
+   "RecommendationRunOut": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "category": {
+      "type": "string",
+      "title": "Category"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "algorithm": {
+      "type": "string",
+      "title": "Algorithm"
+     },
+     "scoring_mode": {
+      "type": "string",
+      "enum": [
+       "ai",
+       "classic"
+      ],
+      "title": "Scoring Mode",
+      "default": "ai"
+     },
+     "config_version": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Config Version"
+     },
+     "model_version_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Model Version Id"
+     },
+     "satisfaction_model_version_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Satisfaction Model Version Id"
+     },
+     "data_state": {
+      "type": "string",
+      "enum": [
+       "ok",
+       "incomplete",
+       "unavailable"
+      ],
+      "title": "Data State"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note"
+     },
+     "candidates_considered": {
+      "type": "integer",
+      "title": "Candidates Considered"
+     },
+     "candidates_excluded": {
+      "type": "integer",
+      "title": "Candidates Excluded"
+     },
+     "items_count": {
+      "type": "integer",
+      "title": "Items Count"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "category",
+     "created_at",
+     "algorithm",
+     "data_state",
+     "note",
+     "candidates_considered",
+     "candidates_excluded",
+     "items_count"
+    ],
+    "title": "RecommendationRunOut"
+   },
+   "RecommendationsOut": {
+    "properties": {
+     "category": {
+      "type": "string",
+      "enum": [
+       "owned",
+       "unowned",
+       "trending"
+      ],
+      "title": "Category"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "ready",
+       "pending"
+      ],
+      "title": "Status"
+     },
+     "scoring_mode": {
+      "type": "string",
+      "enum": [
+       "ai",
+       "classic"
+      ],
+      "title": "Scoring Mode",
+      "default": "ai"
+     },
+     "score_kind": {
+      "type": "string",
+      "enum": [
+       "match",
+       "calibrated_satisfaction"
+      ],
+      "title": "Score Kind",
+      "default": "match"
+     },
+     "run": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RecommendationRunOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/RecommendationOut"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "filtered_out": {
+      "type": "integer",
+      "title": "Filtered Out",
+      "default": 0
+     },
+     "hidden_by_feedback": {
+      "type": "integer",
+      "title": "Hidden By Feedback",
+      "default": 0
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total",
+      "default": 0
+     },
+     "trend_status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/TrendStatusOut"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "popular_now": {
+      "items": {
+       "$ref": "#/components/schemas/PopularNowOut"
+      },
+      "type": "array",
+      "title": "Popular Now",
+      "default": []
+     },
+     "attribution": {
+      "type": "string",
+      "title": "Attribution",
+      "default": "Game data provided by Steam."
+     }
+    },
+    "type": "object",
+    "required": [
+     "category",
+     "status",
+     "run",
+     "items"
+    ],
+    "title": "RecommendationsOut"
+   },
+   "ReviewOut": {
+    "properties": {
+     "count": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Count"
+     },
+     "percent_positive": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Percent Positive"
+     },
+     "label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Label"
+     }
+    },
+    "type": "object",
+    "required": [
+     "count",
+     "percent_positive",
+     "label"
+    ],
+    "title": "ReviewOut"
+   },
+   "SatisfactionIn": {
+    "properties": {
+     "recommendation_run_id": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "minimum": 1.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Recommendation Run Id"
+     },
+     "position": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 1000.0,
+        "minimum": 1.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Position"
+     },
+     "surface": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "dashboard",
+         "play",
+         "buy",
+         "trending",
+         "game_page",
+         "profile",
+         "library"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Surface"
+     },
+     "rating": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "maximum": 2.0,
+        "minimum": -2.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rating"
+     },
+     "source": {
+      "type": "string",
+      "enum": [
+       "post_play",
+       "already_played"
+      ],
+      "title": "Source",
+      "default": "post_play"
+     }
+    },
+    "type": "object",
+    "required": [
+     "rating"
+    ],
+    "title": "SatisfactionIn"
+   },
+   "SearchOut": {
+    "properties": {
+     "results": {
+      "items": {
+       "$ref": "#/components/schemas/SearchResultOut"
+      },
+      "type": "array",
+      "title": "Results"
+     },
+     "attribution": {
+      "type": "string",
+      "title": "Attribution",
+      "default": "Search results provided by Steam."
+     }
+    },
+    "type": "object",
+    "required": [
+     "results"
+    ],
+    "title": "SearchOut"
+   },
+   "SearchResultOut": {
+    "properties": {
+     "steam_appid": {
+      "type": "integer",
+      "title": "Steam Appid"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "capsule_image_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Capsule Image Url"
+     },
+     "release_year": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Release Year"
+     },
+     "owned": {
+      "type": "boolean",
+      "title": "Owned"
+     },
+     "rating": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rating"
+     }
+    },
+    "type": "object",
+    "required": [
+     "steam_appid",
+     "name",
+     "capsule_image_url",
+     "release_year",
+     "owned",
+     "rating"
+    ],
+    "title": "SearchResultOut"
+   },
+   "SessionOut": {
+    "properties": {
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "last_seen_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Seen At"
+     },
+     "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Expires At"
+     },
+     "current": {
+      "type": "boolean",
+      "title": "Current"
+     }
+    },
+    "type": "object",
+    "required": [
+     "created_at",
+     "last_seen_at",
+     "expires_at",
+     "current"
+    ],
+    "title": "SessionOut"
+   },
+   "SteamConnectionOut": {
+    "properties": {
+     "steam_id": {
+      "type": "string",
+      "title": "Steam Id"
+     },
+     "profile_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Profile Name"
+     },
+     "profile_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Profile Url"
+     },
+     "avatar_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Avatar Url"
+     },
+     "profile_is_public": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Profile Is Public"
+     },
+     "game_details_status": {
+      "type": "string",
+      "enum": [
+       "unknown",
+       "accessible",
+       "empty",
+       "private",
+       "error"
+      ],
+      "title": "Game Details Status"
+     },
+     "game_details_checked_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Game Details Checked At"
+     },
+     "playtime_appears_hidden": {
+      "type": "boolean",
+      "title": "Playtime Appears Hidden"
+     },
+     "last_synced_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Synced At"
+     }
+    },
+    "type": "object",
+    "required": [
+     "steam_id",
+     "profile_name",
+     "profile_url",
+     "avatar_url",
+     "profile_is_public",
+     "game_details_status",
+     "game_details_checked_at",
+     "playtime_appears_hidden",
+     "last_synced_at"
+    ],
+    "title": "SteamConnectionOut"
+   },
+   "SyncRunOut": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "queued",
+       "running",
+       "succeeded",
+       "blocked_private",
+       "empty",
+       "failed"
+      ],
+      "title": "Status"
+     },
+     "trigger": {
+      "type": "string",
+      "title": "Trigger"
+     },
+     "queued_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Queued At"
+     },
+     "finished_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Finished At"
+     },
+     "games_seen": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Games Seen"
+     },
+     "error_code": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error Code"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "status",
+     "trigger",
+     "queued_at",
+     "finished_at",
+     "games_seen",
+     "error_code"
+    ],
+    "title": "SyncRunOut"
+   },
+   "TrendStatusOut": {
+    "properties": {
+     "days_collected": {
+      "type": "integer",
+      "title": "Days Collected"
+     },
+     "days_needed": {
+      "type": "integer",
+      "title": "Days Needed"
+     },
+     "first_day": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "First Day"
+     },
+     "games_tracked": {
+      "type": "integer",
+      "title": "Games Tracked"
+     },
+     "source": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source"
+     },
+     "last_success_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Success At"
+     },
+     "freshness_hours": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Freshness Hours"
+     },
+     "reliability_7d": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reliability 7D"
+     },
+     "max_staleness_hours": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Max Staleness Hours"
+     }
+    },
+    "type": "object",
+    "required": [
+     "days_collected",
+     "days_needed",
+     "first_day",
+     "games_tracked"
+    ],
+    "title": "TrendStatusOut"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   }
+  }
+ }
+}

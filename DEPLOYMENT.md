@@ -5,9 +5,11 @@ document explains how the deployment is built and why; it holds no competing
 step-by-step instructions.
 
 Target: a Linux server with Docker Compose, behind an **existing** Traefik that
-terminates HTTPS. The server's Traefik network, entrypoint, certificate resolver,
-domain and monitoring stack are configuration values in `.env`; this repository never
-assumes or creates them ([docs/spec/OPEN_QUESTIONS.md](docs/spec/OPEN_QUESTIONS.md) #14).
+terminates HTTPS. This repository never creates Traefik or its network. The routing
+values (host rule, entrypoint, certificate resolver and Traefik network name) are
+written directly in `docker-compose.yml` for the current server, not read from `.env`
+([ADR-0023](docs/adr/0023-frontend-only-traefik-routing.md)). Another server edits those
+lines (section 3).
 
 ## 1. Files and workflow
 
@@ -25,8 +27,8 @@ docker compose up -d   # run them
 | `docker-compose.yml` | **The** deployment: every service, network, volume, limit, health check and Traefik label. Only `image:` references, **no `build:`**. Local images use `pull_policy: never` (a missing image fails with `No such image`), Redis uses `pull_policy: missing`. |
 | `.env` | The only runtime configuration, next to `docker-compose.yml`, read automatically by Compose. Template: `.env.example`. |
 | `docker/postgres/Dockerfile` | `postgres:18.7-trixie` + the provisioning scripts. |
-| `docker/dev/compose.dev.yaml` | Workstation/test overlay only (localhost ports, test services). Never loaded automatically; always named with `-f`. Never on a server. |
-| `perf/compose.perf.yaml` | Isolated load-test overlay (docs/PERFORMANCE.md). |
+| `docker/dev/compose.dev.yaml` | Workstation/test overlay (localhost ports, test services). **Not in this repository**: README, `perf/stack.sh` and the test docs refer to it, but the file was not committed. |
+| `perf/compose.perf.yaml` | Isolated load-test overlay (docs/PERFORMANCE.md). It is layered on `docker/dev/compose.dev.yaml`, so it cannot run from this repository as is. |
 
 | Image | Build context | Used by |
 |---|---|---|
@@ -49,11 +51,13 @@ workflow.
 ## 2. Services and networks
 
 ```
- internet ──► Traefik (existing) ──┬─► frontend :3000      network "proxy" (external,
-                                   └─► backend  :8000/api   TRAEFIK_NETWORK)
- frontend ──► backend                                       network "edge"
- backend, worker ──► Steam / IGDB (outbound)                network "edge"
- backend, worker, scheduler, migrate ──► postgres, redis    network "internal" (no route out)
+ internet ──► Traefik (existing) ──► frontend :3000           external Traefik network
+                                       │  /api/* (Next.js rewrite)  (private_secured_network)
+                                       ▼
+                                     backend :8000             network "edge" (alias wdywtp-backend)
+ backend, worker ──► Steam / IGDB (outbound)                   network "edge"
+ backend, worker, scheduler, migrate ──► postgres, redis       network "internal" (no route out;
+                                                               aliases wdywtp-postgres, wdywtp-redis)
 ```
 
 | Service | Image | Networks | Health check | Restart | CPU / memory |
@@ -61,15 +65,19 @@ workflow.
 | postgres | wdywtp-postgres:1.0 (postgres:18.7) | internal | `pg_isready` over TCP | unless-stopped | 2 / 2 GiB |
 | redis | redis:8.10.3-alpine | internal | `PING` | unless-stopped | 1 / 768 MiB (`maxmemory` 512 MiB, `noeviction`, AOF) |
 | migrate | wdywtp-backend:1.0 | internal | none (one-shot) | no | none |
-| backend | wdywtp-backend:1.0 | internal, edge, proxy | `/api/health/live` (image) | unless-stopped | 2 / 1 GiB |
+| backend | wdywtp-backend:1.0 | internal, edge | `/api/health/live` (image) | unless-stopped | 2 / 1 GiB |
 | worker | wdywtp-backend:1.0 | internal, edge | Celery ping | unless-stopped | 2 / 2 GiB |
 | scheduler | wdywtp-backend:1.0 | internal | none (one instance) | unless-stopped | 0.5 / 256 MiB |
-| frontend | wdywtp-frontend:1.0 | edge, proxy | `/healthz` (image) | unless-stopped | 1 / 768 MiB |
+| frontend | wdywtp-frontend:1.0 | edge, Traefik network | `/healthz` (image) | unless-stopped | 1 / 768 MiB |
 
-- **No published ports.** The only way in is Traefik, over the external network
-  `proxy`. Only frontend and backend join it; PostgreSQL and Redis are only on
-  `internal` (`internal: true`, no route to the outside). `scripts/security-check.sh`
-  verifies all of this on the running stack.
+- **No published ports.** The only way in is Traefik, over the external Traefik
+  network. Only `frontend` joins it; the backend is reached through the frontend's
+  `/api/*` rewrite over `edge`. PostgreSQL and Redis are only on `internal`
+  (`internal: true`, no route to the outside). `scripts/security-check.sh` verifies the
+  port and network rules on the running stack.
+- **Unique aliases.** The Traefik network is shared with other stacks on the server,
+  where names like `postgres`, `redis` or `backend` can resolve to other containers.
+  The app therefore connects to `wdywtp-postgres`, `wdywtp-redis` and `wdywtp-backend`.
 - **Users and filesystems.** The application containers run as non-root (uid 10001
   and 1000) with read-only root filesystems, `no-new-privileges` and all capabilities
   dropped. Writable paths: `/tmp` (tmpfs), the frontend's `.next/cache` (tmpfs) and
@@ -84,28 +92,59 @@ workflow.
 
 ## 3. Traefik integration
 
-Labels on `backend` and `frontend` define two routers on the same host:
-`Host(PUBLIC_HOSTNAME) && PathPrefix(/api)` (priority 100) to the backend, and
-`Host(PUBLIC_HOSTNAME)` to the frontend, both on `TRAEFIK_ENTRYPOINT` with TLS from
-`TRAEFIK_CERT_RESOLVER`, plus a `wdywtp-headers` middleware that adds HSTS (one year).
-The blocks are marked `TRAEFIK ROUTING ... (edit here ...)` in the file, with the
-usual adjustments explained in tutorial.md, section C ("Traefik settings").
+Only `frontend` has Traefik labels ([ADR-0023](docs/adr/0023-frontend-only-traefik-routing.md)).
+They define one router, `wsip`, with literal values:
 
-`FORWARDED_ALLOW_IPS` (Traefik's address or subnet) is required: uvicorn accepts
-`X-Forwarded-For` only from there, so rate limits see real client IPs and nobody else
-can spoof them.
+| Label | Sets |
+|---|---|
+| `traefik.http.routers.wsip.rule` | `Host(...)`: the site's domain |
+| `traefik.http.routers.wsip.entrypoints` | `websecure` |
+| `traefik.http.routers.wsip.tls.certresolver` | the certificate resolver name in the server's Traefik |
+| `traefik.http.services.wsip.loadbalancer.server.port` | `3000` |
 
-Verified on 2026-11-15 with a local Traefik v3.6 on a separate network: both routes,
-HSTS and security headers. With a resolver name that does not exist, Traefik serves
-its default certificate and logs `Router uses a nonexistent certificate resolver`.
-A real ACME certificate needs the real domain and was not tested.
+The external network is declared at the end of the file (`private_secured_network`,
+`external: true`). To deploy elsewhere, edit the host rule, entrypoint, resolver and
+network name in `docker-compose.yml`. The `.env` variables `PUBLIC_HOSTNAME`,
+`TRAEFIK_NETWORK`, `TRAEFIK_ENTRYPOINT` and `TRAEFIK_CERT_RESOLVER` are not read by the
+Compose file. `PUBLIC_BASE_URL` still matters: it must be `https://<the domain>`, as it
+is the Steam OpenID return address and the CSRF origin.
+
+`/api/*` reaches the backend through the Next.js rewrite in the frontend image. Its
+target, `http://wdywtp-backend:8000`, is compiled in at build time (`BACKEND_INTERNAL_URL`
+build argument in `frontend/Dockerfile`).
+
+**HSTS** is not set by this application: there is no Traefik headers middleware and
+neither app sends `Strict-Transport-Security`. Add it in the server's Traefik
+configuration, or add a headers middleware label to `frontend`.
+
+**`FORWARDED_ALLOW_IPS`** is required. uvicorn accepts `X-Forwarded-For` only from
+these addresses, so rate limits see real client IPs and nobody else can spoof them.
+The backend's direct peer is now the frontend container on `edge`, so the value must
+include the `edge` network's subnet as well as Traefik's network address, for example
+`172.18.0.0/16,172.19.0.0/16`. The `edge` subnet exists only after the first
+`docker compose up -d`:
+
+```bash
+docker network inspect wdywtp_edge --format '{{(index .IPAM.Config 0).Subnet}}'
+```
+
+With only Traefik's subnet, every visitor shares the frontend's address for the per-IP
+limits, including sign-in (20 per minute). Whether the Next.js rewrite forwards
+`X-Forwarded-For` has not been verified on this layout.
+
+The routing tests of 2026-11-15 (local Traefik v3.6: routes, HSTS, headers, default
+certificate) used the earlier two-router layout, not this one.
 
 ## 4. Configuration and secrets
 
-- All configuration comes from `.env` (mode 600, never committed, `.gitignore`
-  covers `.env` and `.env.*` except `.env.example`). `docker-compose.yml` contains no
-  secret; required values use `${VAR:?message}` so Compose refuses to start without
-  them.
+- All configuration except the Traefik routing (section 3) comes from `.env` (mode
+  600, never committed, `.gitignore` covers `.env` and `.env.*` except
+  `.env.example`). `docker-compose.yml` contains no secret; required values use
+  `${VAR:?message}` so Compose refuses to start without them.
+- Settings with a default in `app/core/config.py` but no line in `docker-compose.yml`
+  (for example `SESSION_TTL_DAYS`, `DB_POOL_SIZE`, the retention periods other than
+  `EVENT_RETENTION_DAYS`) cannot be changed from `.env` alone: Compose passes each
+  container only the variables listed under its `environment`.
 - Each service receives only what it needs. The superuser password goes only to
   postgres. The schema-owner role goes only to migrate. The scheduler gets the
   runtime database credentials only because the shared settings validation requires
@@ -163,8 +202,10 @@ recommendation engine for the whole deployment; changing it means
 
 The limits above were load-tested with 100 concurrent signed-in players while daily
 training, library syncs and a burst of recommendation rebuilds ran
-([docs/PERFORMANCE.md](docs/PERFORMANCE.md)). Database connections per API process:
-pool 10 + overflow 10 (`DB_POOL_SIZE`, `DB_MAX_OVERFLOW`). Keep
+([docs/PERFORMANCE.md](docs/PERFORMANCE.md)) on the earlier layout, where Traefik sent
+`/api/*` straight to the backend. Database connections per API process: pool 10 +
+overflow 10 (`DB_POOL_SIZE`, `DB_MAX_OVERFLOW` settings; `docker-compose.yml` does not
+pass them, so changing them needs an `environment` entry). Keep
 `WEB_CONCURRENCY × 20 + worker` under the runtime role's limit of 60 connections. The
 worker's 2 CPUs bound how fast recommendation rebuilds drain (about 370 per minute).
 To scale the API, raise its `cpus` limit and `WEB_CONCURRENCY` together.
@@ -196,6 +237,14 @@ next training run rebuilds them). Redis needs no backup.
 ## 10. Not yet in place
 
 - Deployment on the real server, with its real domain and certificate (not verified).
+- HSTS (section 3): not set by the application since the routing change.
+- Client IP forwarding through the frontend (section 3): not verified.
+- `scripts/check-env.sh` still requires `PUBLIC_HOSTNAME`, `TRAEFIK_NETWORK` and
+  `TRAEFIK_CERT_RESOLVER`, and checks that `TRAEFIK_NETWORK` exists, although the Compose
+  file no longer uses them.
+- The workstation overlay `docker/dev/compose.dev.yaml`, the backend and frontend test
+  suites, `scripts/smoke-test.sh` and `scripts/generate-api-docs.py` are referenced by the
+  docs but not in this repository.
 - Pushing alerts to an alerting system. They are stored and shown by `status` and
   `monitor`; wiring them up needs the server's monitoring stack (OPEN_QUESTIONS #14, #32).
 - Dependency scanning in CI. Run `scripts/security-check.sh` on a workstation before

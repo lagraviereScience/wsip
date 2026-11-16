@@ -15,7 +15,7 @@ automatic:
 - configuration checks;
 - start order.
 
-Conventions: `bash` blocks are commands to run. Lines like `PUBLIC_HOSTNAME=...` are
+Conventions: `bash` blocks are commands to run. Lines like `PUBLIC_BASE_URL=...` are
 values to put in `.env`. `<ANGLE_BRACKETS>` are values only you know; replace them,
 brackets included. ⚠️ marks destructive operations.
 
@@ -88,17 +88,21 @@ while a required value is empty.
 
 | Variable | What to put |
 |---|---|
-| `PUBLIC_HOSTNAME` | Your domain, without `https://`: `play.example.org` |
-| `PUBLIC_BASE_URL` | The same with `https://`: `https://play.example.org`. Steam sign-in returns here. |
-| `TRAEFIK_NETWORK` | The Docker network your Traefik container is on (see below) |
-| `TRAEFIK_CERT_RESOLVER` | The name of the certificate resolver in your Traefik configuration |
-| `FORWARDED_ALLOW_IPS` | The subnet of that network (see below), so the app sees visitors' real IPs |
+| `PUBLIC_BASE_URL` | Your domain with `https://`: `https://play.example.org`. Steam sign-in returns here. |
+| `FORWARDED_ALLOW_IPS` | The subnets the backend may trust for visitors' real IPs (see below) |
 | `POSTGRES_SUPERUSER_PASSWORD`, `DB_MIGRATION_PASSWORD`, `DB_PASSWORD`, `REDIS_PASSWORD` | Already filled in by the command above |
 | `STEAM_WEB_API_KEY` | Needed for automatic library import (see below) |
 
+`PUBLIC_HOSTNAME`, `TRAEFIK_NETWORK` and `TRAEFIK_CERT_RESOLVER` are no longer read by
+`docker-compose.yml`, but `./scripts/check-env.sh` still checks them. Fill them in with
+the same values you put in `docker-compose.yml` (below) if you use that script.
+
 ### Traefik settings
 
-Find the network Traefik uses and its subnet:
+The routing is written directly in `docker-compose.yml`, in the `frontend` service's
+`labels` and the `networks` section at the end of the file
+([ADR-0023](docs/adr/0023-frontend-only-traefik-routing.md)). Find your Traefik's
+network:
 
 ```bash
 docker ps --format '{{.Names}}' | grep -i traefik
@@ -106,21 +110,41 @@ docker inspect <TRAEFIK_CONTAINER> --format '{{range $n, $_ := .NetworkSettings.
 docker network inspect <TRAEFIK_NETWORK> --format '{{(index .IPAM.Config 0).Subnet}}'
 ```
 
-Put the network name in `TRAEFIK_NETWORK` and the subnet (for example
-`172.18.0.0/16`) in `FORWARDED_ALLOW_IPS`. `TRAEFIK_ENTRYPOINT` (default
-`websecure`) and `TRAEFIK_CERT_RESOLVER` come from Traefik's own static
-configuration: its `entryPoints` and `certificatesResolvers` sections.
+Then check these lines in `docker-compose.yml` and change them if your server differs:
 
-The routing is already defined in `docker-compose.yml`:
+| Line | Set it to |
+|---|---|
+| `traefik.http.routers.wsip.rule=Host(...)` | your domain |
+| `traefik.http.routers.wsip.entrypoints=websecure` | your HTTPS entrypoint (Traefik's `entryPoints`) |
+| `traefik.http.routers.wsip.tls.certresolver=...` | your resolver (Traefik's `certificatesResolvers`) |
+| `private_secured_network` (twice: `frontend.networks` and the `networks` section) | your Traefik network |
 
-- `https://<domain>/api` goes to the `backend` container;
-- everything else goes to the `frontend` container;
-- HSTS and security headers are added.
+How requests flow:
 
-To adapt it, look for the blocks marked `TRAEFIK ROUTING ... (edit here ...)`. You
-can add your own middlewares, or remove the `certresolver` lines if Traefik already
-has a certificate for the domain. Only `frontend` and `backend` join Traefik's
-network; the database and Redis never do.
+- every request to your domain goes to the `frontend` container;
+- the frontend forwards `/api/...` to the backend over the stack's private `edge`
+  network. Only `frontend` joins Traefik's network; the backend, database and Redis
+  never do.
+
+**`FORWARDED_ALLOW_IPS`**: the backend receives requests from the frontend, not from
+Traefik, so it must trust both networks. Start with Traefik's subnet (for example
+`172.18.0.0/16`) so the first start works. After `docker compose up -d` (section E),
+add the stack's `edge` subnet and apply it:
+
+```bash
+docker network inspect wdywtp_edge --format '{{(index .IPAM.Config 0).Subnet}}'
+```
+
+```
+FORWARDED_ALLOW_IPS=172.18.0.0/16,<EDGE_SUBNET>
+```
+
+```bash
+docker compose up -d
+```
+
+**HSTS** is not added by this application. Enable it in your Traefik configuration
+(a `headers` middleware with `stsSeconds`) if you want it.
 
 ### Steam Web API key
 
@@ -309,8 +333,9 @@ For a plain-language check of `.env` (never prints secrets), run
 
 **`No such image: wdywtp-...:1.0`:** run `./build.sh` first.
 
-**`network ... declared as external, but could not be found`:** `TRAEFIK_NETWORK`
-does not match an existing network. Check it with `docker network ls`.
+**`network ... declared as external, but could not be found`:** the Traefik network
+named in `docker-compose.yml` does not exist on this server. Check it with
+`docker network ls` and fix the name (section C, "Traefik settings").
 
 **Other Compose errors:** `docker compose config --quiet` names the problem in
 `docker-compose.yml` or `.env`.
@@ -338,16 +363,18 @@ service with the new value.
 
 - `docker logs <TRAEFIK_CONTAINER> 2>&1 | grep -i wdywtp`
 - A 404 from Traefik means:
-  - `PUBLIC_HOSTNAME` doesn't match the domain you opened;
+  - the `Host(...)` rule in `docker-compose.yml` doesn't match the domain you opened;
   - or the Docker provider is off;
-  - or `frontend`/`backend` are not on `TRAEFIK_NETWORK`. Check with
+  - or `frontend` is not on Traefik's network. Check with
     `docker network inspect <TRAEFIK_NETWORK> --format '{{range .Containers}}{{.Name}} {{end}}'`.
 - A 502 means the container isn't healthy yet (check `docker compose ps`).
+- The site loads but `/api/...` calls fail: the frontend cannot reach the backend.
+  Check `docker compose ps backend` and `docker compose logs frontend`.
 
 **HTTPS certificate** (the browser warns; issuer `TRAEFIK DEFAULT CERT`):
 
-- `Router uses a nonexistent certificate resolver` in Traefik's log:
-  `TRAEFIK_CERT_RESOLVER` is wrong.
+- `Router uses a nonexistent certificate resolver` in Traefik's log: the
+  `certresolver` label in `docker-compose.yml` is wrong.
 - ACME or challenge errors: the DNS record, or ports 80/443, are not reachable from
   the internet.
 

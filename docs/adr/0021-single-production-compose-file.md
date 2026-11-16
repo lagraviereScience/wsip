@@ -1,6 +1,6 @@
 # ADR-0021: One canonical production Compose file, with an optional workstation overlay
 
-- Status: Accepted, amended by [ADR-0022](0022-prebuilt-images-and-build-script.md) (build.sh, image-only Compose file, overlay moved to `docker/dev/`) · Date: 2026-11-15 · After Stage 6 (owner request)
+- Status: Accepted, amended by [ADR-0022](0022-prebuilt-images-and-build-script.md) (build.sh, image-only Compose file, overlay moved to `docker/dev/`) and [ADR-0023](0023-frontend-only-traefik-routing.md) (frontend-only Traefik routing, literal labels) · Date: 2026-11-15 · After Stage 6 (owner request)
 
 ## Context
 Until Stage 6, production required combining three files:

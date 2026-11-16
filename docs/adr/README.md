@@ -6,7 +6,7 @@ Superseded. Supersede an ADR with a new one instead of editing its decision.
 | ADR | Title | Status |
 |---|---|---|
 | [0001](0001-modular-monolith.md) | Modular monolith and repository layout | Accepted |
-| [0002](0002-same-origin-api-routing.md) | Same-origin API routing | Accepted |
+| [0002](0002-same-origin-api-routing.md) | Same-origin API routing | Amended by 0023 (frontend forwards `/api/*`) |
 | [0003](0003-sync-sqlalchemy-psycopg.md) | Synchronous SQLAlchemy 2 with psycopg 3 | Accepted |
 | [0004](0004-least-privilege-database.md) | Least-privilege database roles and internal network | Accepted |
 | [0005](0005-python-toolchain.md) | Python 3.12 and uv | Accepted |
@@ -25,5 +25,6 @@ Superseded. Supersede an ADR with a new one instead of editing its decision.
 | [0018](0018-training-data-privacy-and-model-lifecycle.md) | Pseudonymous training, factor-only artifacts, gated deployment | Accepted |
 | [0019](0019-satisfaction-model.md) | Point-in-time LightGBM satisfaction model, calibrated before display | Accepted |
 | [0020](0020-deployment-wide-scoring-mode.md) | Deployment-wide scoring mode (AI_GRADE) selected in one engine module | Accepted |
-| [0021](0021-single-production-compose-file.md) | One canonical production Compose file, with an optional workstation overlay | Amended by 0022 |
+| [0021](0021-single-production-compose-file.md) | One canonical production Compose file, with an optional workstation overlay | Amended by 0022 and 0023 |
 | [0022](0022-prebuilt-images-and-build-script.md) | Prebuilt fixed-tag images (build.sh) and an image-only Compose file | Accepted |
+| [0023](0023-frontend-only-traefik-routing.md) | Traefik routes to the frontend only; the frontend forwards `/api/*` | Accepted |

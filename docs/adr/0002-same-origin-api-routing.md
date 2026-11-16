@@ -1,6 +1,6 @@
 # ADR-0002: Same-origin API routing
 
-- Status: Accepted · Date: 2026-11-14
+- Status: Accepted, amended by [ADR-0023](0023-frontend-only-traefik-routing.md) (production now also uses the Next.js rewrite; Traefik routes to the frontend only) · Date: 2026-11-14
 
 ## Context
 Steam OpenID login will establish a session cookie that must be `HttpOnly`, `Secure` and `SameSite`. Cross-origin API calls would need CORS with credentials and weaken the cookie policy.

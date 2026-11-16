@@ -1,0 +1,22 @@
+# Isolated performance-test environment (docs/PERFORMANCE.md).
+#
+#   ./perf/stack.sh up      separate Compose project "wdywtp-perf": its own database,
+#                           Redis, model volume and networks, on ports 3100/8100
+#
+# Safety: Steam is unreachable from this stack (the API base URL points at a closed
+# local port and no key is set), the scheduler is disabled (no periodic Steam calls),
+# and IGDB stays disabled. All data in it is synthetic.
+x-perf-env: &perf-env
+  STEAM_WEB_API_KEY: ""
+  STEAM_API_BASE_URL: http://127.0.0.1:9
+  IGDB_ENABLED: "false"
+
+services:
+  migrate:
+    environment: *perf-env
+  backend:
+    environment: *perf-env
+  worker:
+    environment: *perf-env
+  scheduler:
+    profiles: [disabled]

@@ -1,0 +1,1 @@
+{"accounts": 20, "parallel": 3, "library_size": 450, "first_import_s": {"p50": 1.33, "max": 1.78}, "resync_with_60_changes_s": {"p50": 0.45, "max": 0.53}, "total_s": 12.6, "imports_per_min": 190.1}

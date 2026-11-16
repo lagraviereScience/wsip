@@ -1,0 +1,47 @@
+{
+ "containers": {
+  "backend": {
+   "cpu_pct_mean": 27.3,
+   "cpu_pct_peak": 58.7,
+   "mem_mib_peak": 314.0
+  },
+  "frontend": {
+   "cpu_pct_mean": 17.1,
+   "cpu_pct_peak": 47.1,
+   "mem_mib_peak": 215.0
+  },
+  "postgres": {
+   "cpu_pct_mean": 25.9,
+   "cpu_pct_peak": 82.9,
+   "mem_mib_peak": 511.0
+  },
+  "redis": {
+   "cpu_pct_mean": 0.6,
+   "cpu_pct_peak": 1.1,
+   "mem_mib_peak": 8.0
+  },
+  "worker": {
+   "cpu_pct_mean": 99.6,
+   "cpu_pct_peak": 200.4,
+   "mem_mib_peak": 638.0
+  }
+ },
+ "postgres": {
+  "connections_peak": 32,
+  "active_peak": 3,
+  "commits_per_sec": 89.4,
+  "cache_hit_pct_min": 99.87
+ },
+ "redis": {
+  "memory_mib_peak": 1.8,
+  "ops_per_sec_peak": 429,
+  "queue_recommendations_peak": 113,
+  "queue_imports_peak": 0,
+  "queue_training_peak": 0
+ },
+ "worker_active_tasks": {
+  "peak": 3,
+  "mean": 1.5,
+  "samples": 14
+ }
+}

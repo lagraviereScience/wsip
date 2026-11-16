@@ -1,7 +1,8 @@
 # Database
 
-PostgreSQL 18 is the single source of truth. Redis holds only ephemeral data
-(cache, later job queues). Losing Redis must never lose user data.
+PostgreSQL 18 is the single source of truth. Redis holds only ephemeral data:
+rate-limit counters, cooldowns, OpenID state and nonces (logical DB 0) and the
+Celery job queue (logical DB 1). Losing Redis must never lose user data.
 
 ## Roles
 
@@ -11,17 +12,20 @@ Both are packaged in the `wdywtp-postgres:1.0` image
 ([docker/postgres/Dockerfile](docker/postgres/Dockerfile), built by `build.sh`) and run
 by the official PostgreSQL entrypoint only when the data volume is empty. With
 existing data, PostgreSQL logs "Skipping initialization" and nothing is re-run
-([ADR-0004](docs/adr/0004-least-privilege-database.md)). The same script creates the isolated
-`<DB_NAME>_test` database for integration tests (`test-db-init` service).
+([ADR-0004](docs/adr/0004-least-privilege-database.md)). `provision.sh` takes the database
+name as an argument, so it can also provision other databases: `scripts/restore-db.sh`
+uses it for the restore-check database. (The docs mention a `test-db-init` service that
+created `<DB_NAME>_test`; it lived in the workstation overlay, which is not in this
+repository.)
 
 | Role | Env vars | Privileges | Used by |
 |---|---|---|---|
 | superuser | `POSTGRES_SUPERUSER(_PASSWORD)` | everything | the postgres container, backups, emergencies |
 | schema owner | `DB_MIGRATION_USER/PASSWORD` | owns database `DB_NAME` and every table | `migrate` service (Alembic) only |
-| runtime | `DB_USER/PASSWORD` | `CONNECT`, `TEMP`, `USAGE` on `public`; `SELECT/INSERT/UPDATE/DELETE` on tables and `USAGE/SELECT` on sequences via default privileges | backend API (later: workers) |
+| runtime | `DB_USER/PASSWORD` | `CONNECT`, `TEMP`, `USAGE` on `public`; `SELECT/INSERT/UPDATE/DELETE` on tables and `USAGE/SELECT` on sequences via default privileges; `CONNECTION LIMIT 60` | backend API and worker (the scheduler receives the credentials but never connects) |
 
-The runtime role **cannot create, alter or drop** objects. An integration test
-checks this. Default privileges apply automatically to every table that
+The runtime role **cannot create, alter or drop** objects (`REVOKE CREATE ON SCHEMA
+public FROM PUBLIC`). Default privileges apply automatically to every table that
 migrations create.
 
 > Init scripts run only when the data volume is empty. To change role passwords
@@ -50,8 +54,9 @@ cd backend && uv run alembic revision -m "describe change"   # or --autogenerate
 Deployments apply new migrations automatically: `./build.sh && docker compose up -d`
 runs the `migrate` service (`alembic upgrade head`, pending revisions only).
 
-Every migration must have a working `downgrade()`. The integration suite runs
-`downgrade base` followed by `upgrade head`.
+Every migration must have a working `downgrade()`. Downgrade `0008` → `0007` and the
+re-upgrade were rehearsed on a test deployment on 2026-11-15 (the integration suite
+that ran `downgrade base` and `upgrade head` is not in this repository).
 
 ### Current revisions
 
@@ -64,6 +69,7 @@ Every migration must have a working `downgrade()`. The integration suite runs
 | `0005` | Stage 4: `behaviour_events` (append-only, enforced by a trigger), `user_game_reactions`, `satisfaction_prompts`, the model registry (`training_runs`, `model_versions`, `evaluation_results`, `model_deployment_history`) and `account_deletions`. Adds a feedback component to inferred preferences, `model_version_id` to runs and `collaborative_score` to items, and widens `recommendation_runs.algorithm` to 64 characters. `user_feedback.source` also accepts `already_played`. |
 | `0006` | Stage 5: `model_monitoring_reports`; `training_runs.report` (JSONB) and `report_path`; `model_versions.feature_schema_version`; `recommendation_runs.satisfaction_model_version_id`; `recommendation_items.predicted_satisfaction`. |
 | `0007` | Stage 6: `player_count_passes` (one row per player-count sampling pass: source freshness and reliability), `game_completion_times` (IGDB time to beat with source and fetch time), `recommendation_runs.duration_ms` (generation latency). |
+| `0008` | Scoring mode (ADR-0020): `recommendation_runs.scoring_mode` (`ai` or `classic`, check constraint, default `ai` so earlier runs count as AI) and `recommendation_runs.config_version` (12-character fingerprint of the mode and every scoring parameter). No data rewritten. |
 
 After migrating, the `migrate` service runs `python -m app.cli sync-taxonomy`. It idempotently
 upserts the canonical taxonomy from `app/taxonomy/seed.py` and re-derives feature values whose
@@ -122,8 +128,7 @@ mapping version is out of date ([ADR-0012](docs/adr/0012-taxonomy-as-code.md)).
 
 Concurrency: new canonical games are created under a transaction-level advisory lock
 and re-checked after acquiring it, with `external_game_ids` uniqueness as a backstop.
-An integration test runs six concurrent importers of the same 40 games and checks that
-no duplicates appear.
+(The integration test that ran six concurrent importers is not in this repository.)
 
 ### Profiles and recommendations (Stage 3, ADR-0016)
 
@@ -134,7 +139,7 @@ no duplicates appear.
 | `profile_runs` | One profile computation: parameter version and full parameters (JSONB), input counts, overall confidence | index (`user_id`, `created_at`) |
 | `user_feature_preferences` | Current inferred value and confidence per feature, with historical, recent and satisfaction components, attributed minutes and evidence games | PK (`user_id`, `feature_id`); value and confidence range checks |
 | `user_feature_preference_history` | Inferred values that changed in a run (NULL value = no longer inferred) | PK (`profile_run_id`, `feature_id`) |
-| `recommendation_runs` | One ranked list per category: algorithm, parameters, data state (ok/incomplete/unavailable), counts, note | category and data-state checks; index (`user_id`, `category`, `created_at`) |
+| `recommendation_runs` | One ranked list per category: algorithm, parameters, data state (ok/incomplete/unavailable), counts, note; since `0008` also `scoring_mode` and `config_version` | category, data-state and scoring-mode checks; index (`user_id`, `category`, `created_at`) |
 | `recommendation_items` | Ranked games with category score, match, backlog and trend scores, confidence, group scores, contributions, reasons, candidate sources | PK (`run_id`, `rank`); unique (`run_id`, `game_id`) |
 | `game_prices` | Steam storefront price per country (final, original, discount, formatted) | PK (`game_id`, `country_code`) |
 | `game_discovery_sources` | Why a game entered the catalogue (tag query, charts) | PK (`game_id`, `source`) |
@@ -177,8 +182,10 @@ behaviour event refers to them) after 24 hours and all other runs after 90 days 
 latest per player and category is always kept). Each feedback click rebuilds three
 lists, so most runs are replaced before anyone sees them; without the 24-hour rule
 `recommendation_items` grew by about 270 MB per hour in the 100-player load test. It also deletes behaviour events older than 730 days
-and monitoring reports older than 400 days (all configurable; 0 keeps forever). Player-count
-samples are kept 60 days; daily aggregates are kept.
+and monitoring reports older than 400 days (0 keeps forever). Only `EVENT_RETENTION_DAYS` is
+passed by `docker-compose.yml`; the other periods use their defaults in `app/core/config.py`.
+Player-count samples are kept 60 days; daily aggregates are kept. `cleanup_sessions` (daily
+04:53) deletes expired and revoked sessions.
 
 ## Planned schema (spec §26, later stages)
 

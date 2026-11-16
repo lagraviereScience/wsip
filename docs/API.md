@@ -1,7 +1,12 @@
 # API reference
 
-Generated from the application by `scripts/generate-api-docs.py`; the machine-readable
-schema is [api/openapi.json](api/openapi.json). Base path `/api`, JSON only.
+Generated from the application by `scripts/generate-api-docs.py` (that script is not in
+this repository); the machine-readable schema is [api/openapi.json](api/openapi.json).
+Checked by hand against `backend/app/api/routes/` on 2026-11-16: every route, query
+parameter and limit below matches. Base path `/api`, JSON only. In production the
+browser reaches it through the frontend, which forwards `/api/*` to the backend
+([ADR-0023](adr/0023-frontend-only-traefik-routing.md)); the interactive docs
+(`/api/docs`) exist only outside production.
 
 - **Authentication**: Steam OpenID sign-in sets an HttpOnly session cookie
   (`wdywtp_session`). "session" endpoints return 401 without it. Sessions expire after

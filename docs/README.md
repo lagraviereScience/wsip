@@ -4,6 +4,16 @@ Every document the specification asks for (spec §42, Prompt 6 F) and where it l
 Documents describe the code as implemented; where design and code differ, the code
 and these documents win over the original specification.
 
+Stage reports ([stages/](stages/)), the specification and its prompts ([spec/](spec/))
+are historical records and are not updated. Where they disagree with the current
+documents (for example on Traefik routing, ADR-0023), the current documents win.
+
+**Not in this repository:** the backend and frontend test suites, the workstation
+overlay `docker/dev/compose.dev.yaml`, `scripts/smoke-test.sh`,
+`scripts/browser-check.py` and `scripts/generate-api-docs.py`. Test results in
+[TESTING.md](TESTING.md) and [PERFORMANCE.md](PERFORMANCE.md) were recorded on the
+original working tree and cannot be re-run from this checkout as is.
+
 ## Start here
 
 | Need | Document |
@@ -34,7 +44,7 @@ and these documents win over the original specification.
 | `privacy-and-security.md` | [PRIVACY.md](PRIVACY.md), [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md) |
 | `deployment.md` | [../DEPLOYMENT.md](../DEPLOYMENT.md), [BACKUP_AND_RECOVERY.md](BACKUP_AND_RECOVERY.md) |
 | `testing.md` | [TESTING.md](TESTING.md), [PERFORMANCE.md](PERFORMANCE.md) |
-| `decisions/` | [adr/](adr/README.md) (22 decision records) |
+| `decisions/` | [adr/](adr/README.md) (23 decision records) |
 
 ## Prompt 6 F list → files
 

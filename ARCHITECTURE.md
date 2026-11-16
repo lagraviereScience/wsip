@@ -1,8 +1,10 @@
 # Architecture
 
-Status: Stage 2 (Steam sign-in, library import, catalogue and taxonomy). This document describes what exists now and the
-module boundaries later stages build into. The authoritative requirements are in
-[docs/spec/MASTER_SPECIFICATION.md](docs/spec/MASTER_SPECIFICATION.md).
+Status: all six stages implemented, plus the `AI_GRADE` scoring mode (ADR-0020), the
+`build.sh` image workflow (ADR-0022) and frontend-only Traefik routing (ADR-0023);
+database at migration `0008`. Sections 1–3 describe the system as it is; section 4
+walks through the flows in the order the stages added them. The authoritative
+requirements are in [docs/spec/MASTER_SPECIFICATION.md](docs/spec/MASTER_SPECIFICATION.md).
 
 ## 1. Style
 
@@ -16,35 +18,41 @@ services without a rewrite. No Kubernetes, no microservices.
 ```text
                        Internet (HTTPS)
                               │
-                     ┌────────▼────────┐  production (labels in docker-compose.yml)
+                     ┌────────▼────────┐  existing Traefik (labels on frontend only)
                      │     Traefik     │
-                     └───┬─────────┬───┘
-            Host(...)    │         │  Host(...) && PathPrefix(/api)
-                ┌────────▼───┐ ┌───▼──────────┐
-   edge network │  frontend  │ │   backend    │ uvicorn, N workers
-                │  Next.js   │─┤   FastAPI    │
-                └────────────┘ └──┬────────┬──┘
-                   /api rewrite    │        │
-                   (local only)    │        │
-               ┌───────────────────▼─┐   ┌──▼──────────┐
- internal net  │  PostgreSQL 18      │   │  Redis 8    │   no outbound route,
- (internal:    │  source of truth    │   │  cache /    │   never published
-  true)        └─────────▲───────────┘   │  broker     │
-                         │               └─────────────┘
-                ┌────────┴────────┐       ┌─────────────────────────────┐
-                │ migrate (1-shot) │       │ worker (Celery, 2 procs)    │──► Steam Web API
-                │ alembic + taxonomy│       │ queues: imports, catalogue, │──► Steam Store API
-                └─────────────────┘       │ default   (internal + edge) │
-                                          └─────────────▲───────────────┘
-                                          ┌─────────────┴───────────────┐
-                                          │ scheduler (Celery beat, ×1) │
-                                          └─────────────────────────────┘
+                     └────────┬────────┘
+                              │ Host(...)            external Traefik network
+                     ┌────────▼────────┐
+                     │    frontend     │  Next.js; /api/* rewrite → wdywtp-backend:8000
+                     └────────┬────────┘
+              edge network    │ /api/*
+                     ┌────────▼────────┐
+                     │     backend     │  FastAPI, uvicorn × WEB_CONCURRENCY
+                     └──┬───────────┬──┘
+               ┌────────▼─────────┐ ┌▼────────────┐
+ internal net  │  PostgreSQL 18   │ │  Redis 8    │   no outbound route,
+ (internal:    │  source of truth │ │ cache, rate │   never published
+  true)        └────────▲─────────┘ │ limits,     │
+                        │           │ broker      │
+                        │           └──────▲──────┘
+          ┌─────────────┴─────┐  ┌─────────┴───────────────────┐
+          │ migrate (1-shot)  │  │ worker (Celery, concurrency │──► Steam Web API, Store API
+          │ check-config,     │  │ 3; six queues; internal +   │──► IGDB (if enabled)
+          │ alembic, taxonomy │  │ edge)                       │
+          └───────────────────┘  └─────────────▲───────────────┘
+                                 ┌─────────────┴───────────────┐
+                                 │ scheduler (Celery beat, ×1) │
+                                 └─────────────────────────────┘
 ```
 
-- **Same-origin API** ([ADR-0002](docs/adr/0002-same-origin-api-routing.md)):
-  the browser only ever talks to one origin. `/api/*` goes to the backend
-  (through Traefik in production, through a Next.js rewrite locally). This keeps
+- **Same-origin API** ([ADR-0002](docs/adr/0002-same-origin-api-routing.md),
+  amended by [ADR-0023](docs/adr/0023-frontend-only-traefik-routing.md)): the browser
+  only ever talks to one origin. Traefik sends every request to the frontend, whose
+  Next.js rewrite forwards `/api/*` to the backend over the `edge` network. This keeps
   session cookies first-party (`SameSite`, `HttpOnly`) and removes the need for CORS.
+  The backend is never on Traefik's network.
+- **Unique aliases** (`wdywtp-backend`, `wdywtp-postgres`, `wdywtp-redis`): the Traefik
+  network is shared with other stacks, so generic names could resolve elsewhere.
 - **Start-up order**: postgres healthy → `migrate` completes → backend healthy →
   frontend. A schema migration failure stops the rollout before new code serves traffic.
 - **Resource limits** are set per container so the stack cannot monopolise the
@@ -52,27 +60,57 @@ services without a rewrite. No Kubernetes, no microservices.
   backend image; ML workers will raise them explicitly and in a controlled way.
 
 The worker and the scheduler reuse the backend image ([ADR-0011](docs/adr/0011-background-jobs.md)).
-Job state that users see lives in PostgreSQL (`library_sync_runs`). Redis is only the broker.
+Job state that users see lives in PostgreSQL (`library_sync_runs`). Redis (logical DB 1)
+is only the broker; there is no result backend. Tasks are acknowledged late, prefetch
+is 1, and the default time limit is 15 minutes (90 for `train_models`).
+
+Scheduled jobs (`app/workers/celery_app.py`, all times UTC):
+
+| Job | When | Queue | Does |
+|---|---|---|---|
+| `schedule_library_syncs` | hourly at :07 | default | Re-imports users with scheduled sync on, active in 30 days, last synced 24 h+ ago |
+| `refresh_stale_metadata` | every 6 h at :23 | catalogue | Store metadata older than 7 days |
+| `discover_global_candidates` | 03:11 | catalogue | Steam charts (most played, top sellers) into the catalogue |
+| `refresh_completion_times` | 03:51 | catalogue | IGDB completion times; no-op unless IGDB is enabled |
+| `train_models` | 04:35 | training | Collaborative, then satisfaction stage; **skipped when `AI_GRADE=FALSE`** |
+| `refresh_steam_vocabulary` | 04:41 | catalogue | Steam tag and category names |
+| `cleanup_sessions` | 04:53 | default | Deletes expired and revoked sessions |
+| `prune_data` | 05:05 | default | Retention (DATABASE.md "Retention") |
+| `monitor_models` | 05:45 | training | Model monitoring report; **skipped when `AI_GRADE=FALSE`** |
+| `sample_player_counts` | every 2 h at :15 | trends | Concurrent players for up to 400 tracked games |
+| `aggregate_player_counts` | 00:20 | trends | Daily averages; prunes raw samples |
+
+On demand: `import_library` (imports), `ingest_metadata` (catalogue) and
+`refresh_recommendations` (recommendations).
 
 ## 3. Backend modules
 
 ```text
 backend/app/
   main.py                 app factory: logging, middleware, routers
-  core/                   config (pydantic-settings), JSON logging, middleware
-  api/                    routers only, thin, no SQL
-    routes/health.py      /api/health/live, /api/health/ready
+  cli.py                  operational commands (python -m app.cli ...)
+  core/                   config (pydantic-settings), JSON logging, middleware, rate limits
+  api/                    routers only: routes/{health,auth,me,catalogue,recommendations,
+                          feedback,privacy}.py
   schemas/                Pydantic API contracts
-  services/               orchestration (health checks now)
-  repositories/           all SQL lives here (from Stage 2)
-  models/                 SQLAlchemy ORM models (from Stage 2)
-  database/               engine/session, Redis client, Base, Alembic migrations
-  integrations/           platform/provider adapters: steam/, game_metadata/, trends/
-  recommendations/        features/, profiling/, candidate_generation/, ranking/, evaluation/
-  machine_learning/       datasets/, training/, models/, registry/
-  workers/                Celery tasks and schedules
-backend/tests/            unit/ (no services), integration/ (live Postgres + Redis)
+  services/               orchestration: auth, library import, metadata, discovery,
+                          profile, recommendations, feedback, privacy, retention, ...
+  repositories/           SQL for users, library, catalogue, taxonomy, recommendations,
+                          behaviour
+  models/                 SQLAlchemy ORM models (41 tables)
+  database/               engine/session, Redis client, Base, Alembic migrations (0001–0008)
+  integrations/           provider adapters: steam/, game_metadata/ (IGDB), trends/,
+                          shared HTTP client and provider registry
+  recommendations/        engines.py (AI_GRADE), params.py, features/, profiling/,
+                          candidate_generation/, ranking/, evaluation/
+  machine_learning/       datasets/, features/, models/, satisfaction/, training/,
+                          registry/, evaluation, monitoring, reports, synthetic benchmark
+  taxonomy/               canonical feature tree (seed.py)
+  workers/                Celery app, tasks and beat schedule
 ```
+
+There is no `backend/tests/` directory in this repository, although `pyproject.toml`,
+the Dockerfile's `test` target and [docs/TESTING.md](docs/TESTING.md) refer to it.
 
 Dependency rule: `api → services → (repositories | integrations | recommendations)
 → models/database`. Nothing imports from `api`. `recommendations` and
@@ -208,7 +246,7 @@ feedback buttons ─► PUT /api/me/games/{id}/feedback/{kind} → user_game_rea
 post-play question ─► PUT …/satisfaction → user_feedback + event
 library sync ─► playtime_change events (attributed to the last exposure within 90 days)
 
-beat 04:35 train_collaborative                                        [queue: training]
+beat 04:35 train_models, collaborative stage (Stage 4 named the task train_collaborative)  [queue: training]
   eligible users (opted in) → pseudonymised signals → chronological + cold-item splits
   → popularity, content, ALS, hybrid ALS, BPR, hybrid BPR → evaluation_results
   → gates → deploy (artifact on the `models` volume) → rebuild active users
@@ -260,34 +298,59 @@ per-provider throttles, a **circuit breaker** (after an outage, calls are skippe
 2 minutes instead of each waiting through retries) and hourly outcome counters
 (`app.cli status`).
 
-Deployment: one production file, `docker-compose.yml` (Traefik labels, no published
-ports, limits) running the images built by `build.sh`, plus the optional
-`docker/dev/compose.dev.yaml` test overlay on workstations ([DEPLOYMENT.md](DEPLOYMENT.md),
-[tutorial.md](tutorial.md)). Scoring mode: `AI_GRADE` selects the machine-learning or
-classic engine in `app/recommendations/engines.py` ([docs/SCORING_MODES.md](docs/SCORING_MODES.md)). Isolated performance stack:
-`perf/` (separate Compose project, synthetic data, Steam unreachable).
+Deployment: one production file, `docker-compose.yml` (Traefik labels on the frontend,
+no published ports, limits) running the images built by `build.sh`
+([DEPLOYMENT.md](DEPLOYMENT.md), [tutorial.md](tutorial.md)). The workstation overlay
+`docker/dev/compose.dev.yaml` the docs mention is not in this repository. Isolated
+performance stack: `perf/` (separate Compose project, synthetic data, Steam
+unreachable; it layers on the missing overlay).
+
+### After Stage 6: scoring mode (ADR-0020)
+
+```
+AI_GRADE=TRUE  → MachineLearningRecommendationEngine: content Match + collaborative + satisfaction,
+                 each only when a deployed model applies (fallback: Match)
+AI_GRADE=FALSE → ClassicRecommendationEngine: content Match and category formulas only;
+                 no model loaded, scheduled training and monitoring skipped
+every run stores scoring_mode (ai | classic) and config_version (fingerprint of mode + EngineParams)
+GET /api/me/recommendations/{c}: a list built in the other mode → status "pending" + rebuild
+```
+
+Selection lives in `app/recommendations/engines.py` only
+([docs/SCORING_MODES.md](docs/SCORING_MODES.md)).
 
 ## 5. Frontend
 
 ```text
 frontend/src/
-  app/                    App Router: landing page, (app)/ route group with 7 pages, /healthz
+  app/                    App Router: landing page (/), /onboarding, /signin/error, /healthz,
+                          (app)/ route group: dashboard, play, buy, trending, library,
+                          library/add, profile, settings, games/[id]
   components/ui/          local component library (Button, Card, Badge, ...; cva + tailwind-merge)
-  components/{layout,games,profile,brand}/
-  lib/types.ts            UI domain types (shared by mock and real data)
+  components/             auth, brand, feedback, games, layout, library, onboarding,
+                          profile, recommendations, settings
+  lib/session.ts          server-side backend calls (session cookie forwarded)
   lib/data/               data-access layer: the ONLY place pages get data from
+  lib/events.ts           behaviour events, batched and flushed every 4 s
+  lib/api/types.ts        API response types; lib/types.ts: UI domain types
   mocks/                  fictional sample data, reachable only via lib/data
 ```
 
+- **Data**: signed-in users get real API data on every page. Signed-out visitors see
+  fictional sample data, marked by a preview banner.
 - **Mock isolation** ([ADR-0007](docs/adr/0007-mock-data-isolation.md)): every
-  loader returns `{ source: "mock" | "api", data }`. Pages show a preview banner
-  for mock data. An ESLint rule blocks importing `@/mocks` from anywhere except
-  `lib/data`.
-- **Scores**: until a calibrated satisfaction model exists, the UI labels scores
-  "Match" and never shows them as a percentage (spec §18, §33). This is enforced
-  by `ScoreBadge` and covered by a test.
-- Next.js 16 with Cache Components; pages are currently prerendered static because
-  their data is fixed. Real per-user data will stream inside Suspense boundaries.
+  loader returns `{ source: "mock" | "api", data }`. An ESLint rule blocks importing
+  `@/mocks` from anywhere except `lib/data`.
+- **Server-side calls** go straight to `BACKEND_INTERNAL_URL` (`http://wdywtp-backend:8000`
+  in Compose) with the session cookie, 5 s timeout. The browser's `/api/*` calls go
+  through the Next.js rewrite, compiled in at build time.
+- **Scores**: `ScoreBadge` shows "Match" (a number, never a percentage) unless the list
+  was ranked by a calibrated satisfaction model, which shows "Predicted enjoyment N%"
+  ("<1%" and ">99%" at the extremes). In classic mode (`AI_GRADE=FALSE`) predictions are
+  ignored even if present (spec §18, §33).
+- Next.js 16 with Cache Components; per-user content renders at request time inside
+  Suspense boundaries.
+- `package.json` has Vitest scripts, but no frontend test files are in this repository.
 
 ## 6. Security baseline
 
@@ -308,6 +371,8 @@ frontend/src/
   idle expiry and "sign out other devices", retention, provider circuit breaker,
   `scripts/security-check.sh` (dependencies, secrets, exposure, containers, headers).
   Full list: [docs/SECURITY_CHECKLIST.md](docs/SECURITY_CHECKLIST.md).
+- Since ADR-0023 the backend is not on Traefik's network, and **no HSTS header is set by
+  the application** (the earlier Traefik headers middleware is gone).
 - Not yet implemented: dependency scanning in CI (run the script before each release).
 
 ## 7. Planned evolution
@@ -319,3 +384,6 @@ frontend/src/
 | ~~Content-based baseline, profiles, three categories, real data in the UI~~ | done in Stage 3 |
 | ~~Collaborative filtering~~ | done in Stage 4 (deploys once enough real players exist) |
 | ~~LightGBM satisfaction model, daily training, monitoring~~ | done in Stage 5 (deploys once 200 labels exist) |
+| ~~Trend source health, completion times, hardening, load test~~ | done in Stage 6 |
+| ~~Deployment-wide scoring mode (`AI_GRADE`)~~ | done after Stage 6 (migration `0008`, ADR-0020) |
+| Test suites, workstation overlay, smoke and API-doc scripts | referenced by the docs, not in this repository |

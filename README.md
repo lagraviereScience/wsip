@@ -7,7 +7,19 @@ should play**, and **trending games that suit you**. The recommendations come
 from specialised recommender models trained on gaming data. No general-purpose
 LLM is involved.
 
-> **Status: Stage 6 (trending data, production hardening and release).** Self-collected
+> **Status: all six stages are implemented.** Since Stage 6: a deployment-wide
+> scoring mode, `AI_GRADE=TRUE|FALSE` (migration `0008`,
+> [docs/SCORING_MODES.md](docs/SCORING_MODES.md)); a `build.sh` + single
+> `docker-compose.yml` deployment (ADR-0022); and Traefik routing to the frontend only,
+> which forwards `/api/*` to the backend
+> ([ADR-0023](docs/adr/0023-frontend-only-traefik-routing.md)).
+>
+> **Not in this repository** (the docs below still mention them): the backend and
+> frontend test suites, the workstation overlay `docker/dev/compose.dev.yaml`,
+> `scripts/smoke-test.sh`, `scripts/browser-check.py` and `scripts/generate-api-docs.py`.
+> The "Local development" commands that use them do not work from this checkout.
+>
+> **Stage 6 (trending data, production hardening and release).** Self-collected
 > Steam player counts with freshness and reliability checks, completion times (IGDB, off
 > until configured), rate limits, session management, retention, backups and restore,
 > a production Compose overlay, a provider circuit breaker, and a 100-concurrent-user load
@@ -35,8 +47,10 @@ LLM is involved.
 > See [docs/stages/STAGE_4_REPORT.md](docs/stages/STAGE_4_REPORT.md).
 
 > **Installing on a server? Follow [tutorial.md](tutorial.md)**: one production
-> `docker-compose.yml`, behind your existing Traefik. Recommendation scoring mode:
-> `AI_GRADE=TRUE|FALSE` in `.env` ([docs/SCORING_MODES.md](docs/SCORING_MODES.md)).
+> `docker-compose.yml`, behind your existing Traefik. Its Traefik labels (domain,
+> entrypoint, certificate resolver, network) are written in the file for the current
+> server; edit them for another one. Recommendation scoring mode: `AI_GRADE=TRUE|FALSE`
+> in `.env` ([docs/SCORING_MODES.md](docs/SCORING_MODES.md)).
 
 ## Stack
 
@@ -45,8 +59,9 @@ LLM is involved.
 | Frontend | Next.js 16 (App Router, standalone build), React 19, TypeScript, Tailwind CSS 4 |
 | Backend | Python 3.12, FastAPI, Pydantic 2, SQLAlchemy 2, Alembic, psycopg 3 |
 | Data | PostgreSQL 18 (source of truth), Redis 8 (cache, rate limits, Celery broker) |
-| Jobs | Celery worker and beat scheduler (library imports, metadata ingestion) |
-| Runtime | Docker Compose; Traefik in front in production |
+| Jobs | Celery worker and beat scheduler (library imports, metadata, discovery, player counts, recommendations, daily training and monitoring, retention) |
+| Machine learning | `implicit` (ALS/BPR), LightGBM, scikit-learn (calibration); CPU only |
+| Runtime | Docker Compose; an existing Traefik in front, routing to the frontend |
 
 ## Deploying
 
@@ -65,7 +80,9 @@ migrations automatically. Updating uses the same two commands.
 ## Local development (workstation)
 
 A workstation usually has no Traefik. The test overlay `docker/dev/compose.dev.yaml`
-publishes the app on localhost instead. It is never used to deploy.
+published the app on localhost instead. **That overlay, the test services and
+`scripts/smoke-test.sh` are not in this repository**, so the commands in this section
+are kept for reference only. It was never used to deploy.
 
 1. Put the workstation values listed at the end of `.env.example` into `.env`.
 2. Create the empty stand-in network once.
@@ -85,7 +102,7 @@ Requirements: Docker Engine with Compose v2.24 or later, `openssl`, `curl`.
 - Backend: <http://127.0.0.1:8000/api/health/ready> (interactive API docs at `/api/docs` outside production)
 
 Unit and integration tests against an isolated `wdywtp_test` database and real Redis
-(never touches development data):
+(never touches development data; needs the overlay and `backend/tests/`, both missing):
 
 ```bash
 docker compose -f docker-compose.yml -f docker/dev/compose.dev.yaml --profile test run --rm --build backend-tests
@@ -104,8 +121,7 @@ Backend (uses [uv](https://docs.astral.sh/uv/)):
 ```bash
 cd backend
 uv sync
-uv run pytest                 # unit tests (integration tests skip without services)
-uv run ruff check . && uv run mypy app tests
+uv run ruff check . && uv run mypy app   # pytest needs backend/tests/, not in this repository
 uv run uvicorn app.main:app --reload    # needs DB_* / REDIS_* env vars for /ready
 ```
 
@@ -115,20 +131,19 @@ Frontend (Node ≥ 20.9):
 cd frontend
 npm ci
 npm run dev                   # http://localhost:3000
-npm test && npm run lint && npm run typecheck
+npm run lint && npm run typecheck      # npm test finds no test files in this repository
 ```
 
 ## Repository layout
 
 ```text
-backend/            FastAPI app, Alembic migrations, tests (see ARCHITECTURE.md)
+backend/            FastAPI app, Celery workers, ML code, Alembic migrations (see ARCHITECTURE.md)
 frontend/           Next.js app; src/mocks holds sample data only
 docker/postgres/    PostgreSQL image: first-start database and role initialisation
-docker/dev/         Workstation/test overlay (localhost ports, test services)
-scripts/            Backups and restore; optional .env helpers (init-env,
-                    check-env); test tools (smoke, persistence, security,
-                    browser checks); API doc generator
-perf/               Isolated load-test stack, Locust scenarios, results
+scripts/            backup-db, restore-db; optional .env helpers (init-env,
+                    check-env); verify-persistence; security-check
+perf/               Load-test scenarios and results (its stack needs the missing
+                    docker/dev overlay)
 docs/spec/          Master specification and stage prompts (authoritative)
 docs/adr/           Architecture decision records
 docs/stages/        Per-stage hand-off reports

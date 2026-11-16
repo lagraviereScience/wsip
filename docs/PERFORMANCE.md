@@ -28,6 +28,9 @@ Date: 2026-11-15 · Tooling: [`perf/`](../perf/) · Raw summaries: [`perf/result
 | Resources | `perf/monitor.sh`: `docker stats`, Postgres activity and commits, Redis memory, ops and queue lengths, Celery active tasks, every 5 s |
 
 Reproduce: `./perf/stack.sh up`, seed (see `perf/seed.py`), then `./perf/run_final.sh`.
+`perf/stack.sh` layers `docker/dev/compose.dev.yaml`, which is not in this repository, so
+it does not start from this checkout as is. The runs below also predate ADR-0023: API
+requests then went from Traefik straight to the backend, not through the frontend.
 
 ## Final results
 

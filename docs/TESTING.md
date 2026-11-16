@@ -1,7 +1,19 @@
 # Testing report (Stage 6)
 
 Date: 2026-11-15. Every result below comes from a run on this date against the
-current working tree. Nothing is assumed from earlier stages.
+working tree of that day. Nothing is assumed from earlier stages.
+
+> **State of this repository (2026-11-16):** the test suites (`backend/tests/`, the
+> frontend `*.test.tsx` files), the workstation overlay `docker/dev/compose.dev.yaml`
+> with its `backend-tests` service, `scripts/smoke-test.sh` and
+> `scripts/browser-check.py` are **not committed here**. The results below cannot be
+> re-run from this checkout. Checks that do not depend on the missing files (not re-run
+> for this note): `ruff`/`mypy` on `backend/app`, `npm run lint`/`typecheck`/`build`,
+> `scripts/security-check.sh`, `scripts/verify-persistence.sh` and the backup/restore
+> scripts.
+>
+> Since these runs, Traefik routing changed (ADR-0023: Traefik → frontend → backend).
+> The routing, HSTS and deployment results below describe the earlier layout.
 
 ## Summary
 

@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+/*
+ * Visual identity — "night arcade".
+ * Deep ink surfaces, a violet brand accent and a teal "match" signal.
+ * Every colour is a token; components use the semantic names only.
+ * Dark-only for Stage 1 (see docs/adr/0006-frontend-stack.md).
+ */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-space-grotesk), var(--font-inter), ui-sans-serif, sans-serif;
+
+  --color-canvas: #07080d;
+  --color-surface: #0e1019;
+  --color-surface-raised: #151826;
+  --color-surface-hover: #1b1f31;
+  --color-line: #232842;
+  --color-line-strong: #343a5c;
+
+  --color-fg: #eef0fa;
+  --color-fg-muted: #a3a8c3;
+  --color-fg-subtle: #6f7494;
+
+  --color-brand-300: #c4b5fd;
+  --color-brand-400: #a78bfa;
+  --color-brand-500: #8b5cf6;
+  --color-brand-600: #7c3aed;
+
+  --color-signal-300: #5eead4;
+  --color-signal-400: #2dd4bf;
+  --color-signal-500: #14b8a6;
+
+  --color-positive: #4ade80;
+  --color-caution: #fbbf24;
+  --color-negative: #fb7185;
+
+  --radius-card: 1rem;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-canvas text-fg font-sans antialiased;
+    background-image:
+      radial-gradient(60rem 30rem at 85% -10%, rgb(139 92 246 / 0.12), transparent 70%),
+      radial-gradient(40rem 24rem at -10% 10%, rgb(45 212 191 / 0.07), transparent 70%);
+    background-attachment: fixed;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-display tracking-tight;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-400;
+  }
+
+  ::selection {
+    background: rgb(139 92 246 / 0.4);
+  }
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

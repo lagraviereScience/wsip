@@ -1,0 +1,24 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Next.js (see also frontend/.gitignore)
+node_modules/
+.next/
+coverage/
+*.tsbuildinfo
+
+# Local artefacts
+/what-do-you-want-to-play.zip
+backups/
+*.log
+.DS_Store

@@ -1,0 +1,73 @@
+[project]
+name = "wdywtp-backend"
+version = "0.1.0"
+description = "What Do You Want to Play? — API, workers and recommendation engine"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "alembic>=1.20",
+    "celery[redis]>=5.7",
+    "defusedxml>=0.7",
+    "fastapi>=0.163",
+    "httpx>=0.28",
+    "implicit>=0.7.3",
+    "lightgbm>=4.5",
+    "numpy>=2.0",
+    "psycopg[binary]>=3.3",
+    "pydantic>=2.14",
+    "pydantic-settings>=2.16",
+    "redis>=8.1",
+    "scikit-learn>=1.5",
+    "scipy>=1.14",
+    "sqlalchemy>=2.1",
+    "uvicorn[standard]>=0.54",
+]
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.16.0",
+    "mypy>=2.4.1",
+    "pytest>=9.2",
+    "ruff>=0.17.5",
+    "types-defusedxml>=0.7.0.20260504",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "integration: requires a running PostgreSQL and Redis (set WDYWTP_INTEGRATION=1)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "N", "SIM", "RUF"]
+ignore = ["S101", "N818"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106"]
+"app/database/migrations/**" = ["N999"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["app/database/migrations/versions/"]
+
+[[tool.mypy.overrides]]
+module = ["celery", "celery.*", "scipy", "scipy.*", "implicit", "implicit.*", "sklearn", "sklearn.*", "lightgbm", "lightgbm.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["app.workers.*"]
+disallow_untyped_decorators = false
+
+# Tests pass duck-typed fakes (FakeRedis, FakeAdapter, ...) where real clients are typed.
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disable_error_code = ["arg-type", "func-returns-value", "unused-ignore"]

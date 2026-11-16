@@ -1,0 +1,309 @@
+# =============================================================================
+# What Do You Want to Play? — Docker Compose file (the only one used to deploy)
+# =============================================================================
+#
+# Deploy (tutorial.md):    ./build.sh            build the three local images
+#                          docker compose up -d  start or update everything
+#
+# This file only runs prebuilt images: the local ones made by ./build.sh
+# (fixed tag 1.0, never pulled from a registry) and the official Redis image
+# (pulled automatically if missing). There is no build step in here.
+#
+# Services and start order (enforced with depends_on conditions):
+#   postgres   database; creates the application database and roles on the very
+#              first start (empty volume), reuses existing data otherwise
+#   redis      cache, rate limits, job queue
+#   migrate    one-shot: checks the configuration, applies pending database
+#              migrations, syncs the game taxonomy, exits 0
+#   backend    HTTP API, after migrate succeeded; reached only via the frontend (/api/* rewrite)
+#   worker     background jobs (Steam imports, recommendations, training)
+#   scheduler  periodic jobs (exactly one instance)
+#   frontend   web app, after the backend is healthy; the only container Traefik routes to
+#
+# Every value that differs between servers comes from .env (template:
+# .env.example). No secret is written in this file. No port is published on the
+# host: the only way in is your existing Traefik, over the external network below.
+#
+# DATA SAFETY: the volumes at the end hold the database. `docker compose up -d`,
+# `restart`, `stop` and `down` keep them. `docker compose down -v` and
+# `docker volume rm` DELETE THE DATABASE: never part of a deployment.
+# The project name below fixes the volume names (wdywtp_postgres-data, ...):
+# do not change it on a server that already has data.
+# =============================================================================
+name: wdywtp
+
+x-hardening: &hardening
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  read_only: true
+  tmpfs: [/tmp]
+
+x-logging: &logging
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+# Settings shared by every backend-image service (migrate, backend, worker, scheduler).
+x-backend-env: &backend-env
+  APP_ENV: ${APP_ENV:-production}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_FORMAT: ${LOG_FORMAT:-json}
+  DB_HOST: wdywtp-postgres  # unique alias: "postgres" also resolves to other stacks on the shared Traefik network
+  DB_PORT: "5432"
+  DB_NAME: ${DB_NAME:-wdywtp}
+  REDIS_HOST: wdywtp-redis  # unique alias: "redis" also resolves to other stacks on the shared Traefik network
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL in .env (https://your-domain)}
+  # Recommendation scoring mode for every user: TRUE = machine learning (trained
+  # models when deployed), FALSE = classic deterministic scoring, no ML, no training.
+  AI_GRADE: ${AI_GRADE:-TRUE}
+
+# Runtime database role, Steam and application settings (API and worker).
+x-app-env: &app-env
+  DB_USER: ${DB_USER:-wdywtp_app}
+  DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+  STEAM_WEB_API_KEY: ${STEAM_WEB_API_KEY:-}
+  STEAM_STORE_COUNTRY: ${STEAM_STORE_COUNTRY:-US}
+  MIN_RATED_GAMES_FOR_PROFILE: ${MIN_RATED_GAMES_FOR_PROFILE:-5}
+  RECOMMENDER_OVERRIDES: ${RECOMMENDER_OVERRIDES:-}
+  TREND_TRACKED_GAMES: ${TREND_TRACKED_GAMES:-400}
+  CF_MIN_USERS: ${CF_MIN_USERS:-25}
+  CF_MIN_POSITIVE_PAIRS: ${CF_MIN_POSITIVE_PAIRS:-500}
+  CF_BLEND_WEIGHT: ${CF_BLEND_WEIGHT:-0.3}
+  SAT_MIN_LABELS: ${SAT_MIN_LABELS:-200}
+  SAT_MAX_ECE: ${SAT_MAX_ECE:-0.08}
+  IGDB_ENABLED: ${IGDB_ENABLED:-false}
+  IGDB_CLIENT_ID: ${IGDB_CLIENT_ID:-}
+  IGDB_CLIENT_SECRET: ${IGDB_CLIENT_SECRET:-}
+  SESSION_IDLE_DAYS: ${SESSION_IDLE_DAYS:-14}
+  API_RATE_LIMIT_PER_MINUTE_SESSION: ${API_RATE_LIMIT_PER_MINUTE_SESSION:-600}
+  API_RATE_LIMIT_PER_MINUTE_IP: ${API_RATE_LIMIT_PER_MINUTE_IP:-300}
+  EVENT_RETENTION_DAYS: ${EVENT_RETENTION_DAYS:-730}
+
+services:
+  postgres:
+    # Official postgres:18.7-trixie + the provisioning scripts (docker/postgres).
+    image: wdywtp-postgres:1.0
+    pull_policy: never
+    restart: unless-stopped
+    <<: *logging
+    shm_size: 256mb
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in .env}
+      POSTGRES_DB: postgres
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --data-checksums"
+      # Read only by the image's initdb script on the very first start (empty
+      # volume): creates the application database, its owner role and the runtime
+      # role. With existing data PostgreSQL skips initialisation entirely.
+      DB_NAME: ${DB_NAME:-wdywtp}
+      DB_USER: ${DB_USER:-wdywtp_app}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      DB_MIGRATION_USER: ${DB_MIGRATION_USER:-wdywtp_owner}
+      DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:?set DB_MIGRATION_PASSWORD in .env}
+    volumes:
+      # All database files. PostgreSQL 18 keeps them under /var/lib/postgresql/18/docker.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      # TCP (-h 127.0.0.1) so the check stays red while the socket-only init server runs.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${DB_NAME}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    networks:
+      internal:
+        aliases: [wdywtp-postgres]
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 2g }
+
+  redis:
+    image: redis:8.10.3-alpine
+    pull_policy: missing
+    restart: unless-stopped
+    <<: *logging
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
+    # Config is fed on stdin so the password is not visible in the process list.
+    # appendonly: queued jobs survive a restart. noeviction: jobs are never evicted.
+    command:
+      - sh
+      - -c
+      - >-
+        printf 'requirepass %s\nappendonly yes\nmaxmemory 512mb\nmaxmemory-policy noeviction\n'
+        "$$REDIS_PASSWORD" | exec redis-server -
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      internal:
+        aliases: [wdywtp-redis]
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 768m }
+
+  # Runs on every `docker compose up -d`, then exits:
+  #   1. checks the configuration (clear message, secrets never printed);
+  #   2. `alembic upgrade head` with the schema-owning role: applies only pending
+  #      migrations, never drops or recreates the database;
+  #   3. syncs the canonical game taxonomy (idempotent).
+  # backend, worker and scheduler start only if it exits 0; otherwise they stay
+  # stopped and `docker compose logs migrate` says why.
+  migrate:
+    image: wdywtp-backend:1.0
+    pull_policy: never
+    <<: [*hardening, *logging]
+    restart: "no"
+    healthcheck: { disable: true }
+    command: ["sh", "-c", "python -m app.cli check-config --quiet && alembic upgrade head && python -m app.cli sync-taxonomy"]
+    environment:
+      <<: *backend-env
+      DB_USER: ${DB_MIGRATION_USER:-wdywtp_owner}
+      DB_PASSWORD: ${DB_MIGRATION_PASSWORD:?set DB_MIGRATION_PASSWORD in .env}
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [internal]
+
+  backend:
+    image: wdywtp-backend:1.0
+    pull_policy: never
+    <<: [*hardening, *logging]
+    restart: unless-stopped
+    environment:
+      <<: [*backend-env, *app-env]
+      # Processes. Keep WEB_CONCURRENCY x 20 pooled connections + the worker below
+      # the runtime role's limit of 60 database connections (DEPLOYMENT.md "Capacity").
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      # Only these addresses may set X-Forwarded-For (real client IPs for rate limits
+      # and logs). The backend is reached only through the frontend (edge network),
+      # which forwards Traefik's X-Forwarded-For.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:?set FORWARDED_ALLOW_IPS in .env}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    # Health check: built into the image (GET /api/health/live every 15 s).
+    # Not on the Traefik network and no Traefik labels: the frontend forwards
+    # /api/* to this container over the edge network.
+    networks:
+      internal: {}
+      edge:
+        aliases: [wdywtp-backend]
+    deploy:
+      resources:
+        limits: { cpus: "2", memory: 1g }
+
+  # Background jobs: library imports, metadata, recommendations, daily training.
+  worker:
+    image: wdywtp-backend:1.0
+    pull_policy: never
+    <<: [*hardening, *logging]
+    restart: unless-stopped
+    command:
+      - celery
+      - -A
+      - app.workers.celery_app
+      - worker
+      - --queues=imports,recommendations,catalogue,trends,training,default
+      - --concurrency=${WORKER_CONCURRENCY:-3}
+      - --max-tasks-per-child=100
+      - --hostname=worker@%h
+      - --without-gossip
+      - --without-mingle
+    environment:
+      <<: [*backend-env, *app-env]
+    volumes:
+      # Trained model files (item factors and satisfaction models; no per-player data).
+      - models:/var/lib/wdywtp/models
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.workers.celery_app inspect ping -d worker@$$HOSTNAME --timeout 10 | grep -q pong"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    # internal: database and Redis. edge: outbound internet (Steam, IGDB).
+    networks: [internal, edge]
+    deploy:
+      resources:
+        # Daily training (LightGBM, ALS) runs here; 2 GB leaves headroom.
+        limits: { cpus: "2", memory: 2g }
+
+  # Periodic scheduler: exactly one instance. It only enqueues jobs; the worker runs them.
+  scheduler:
+    image: wdywtp-backend:1.0
+    pull_policy: never
+    <<: [*hardening, *logging]
+    restart: unless-stopped
+    command: ["celery", "-A", "app.workers.celery_app", "beat", "--schedule=/tmp/celerybeat-schedule"]
+    environment:
+      <<: *backend-env
+      # The scheduler never connects to the database, but the shared settings are
+      # validated at start and refuse to run in production without these.
+      DB_USER: ${DB_USER:-wdywtp_app}
+      DB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    healthcheck: { disable: true }
+    depends_on:
+      # Starts only with a valid configuration and an up-to-date schema.
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    networks: [internal]
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256m }
+
+  frontend:
+    image: wdywtp-frontend:1.0
+    pull_policy: never
+    <<: [*hardening, *logging]
+    tmpfs: [/tmp, /app/.next/cache]
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      # Server-side rendering calls the backend directly over the edge network.
+      BACKEND_INTERNAL_URL: http://wdywtp-backend:8000  # unique alias (see backend networks)
+      SESSION_COOKIE_NAME: wdywtp_session
+      # Keep-alive above Traefik's idle timeout (90 s).
+      KEEP_ALIVE_TIMEOUT: ${FRONTEND_KEEPALIVE_MS:-95000}
+    depends_on:
+      backend: { condition: service_healthy }
+    # Health check: built into the image (GET /healthz every 15 s).
+    # The ONLY container on the Traefik network and the ONLY one with Traefik labels.
+    # It serves the web app and forwards /api/* to the backend (Next.js rewrite).
+    networks: [edge, private_secured_network]
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wsip.rule=Host(`whatshouldiplay.kouskous.stream`)"
+      - "traefik.http.routers.wsip.entrypoints=websecure"
+      - "traefik.http.routers.wsip.tls.certresolver=myresolver"
+      - "traefik.http.services.wsip.loadbalancer.server.port=3000"
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 768m }
+
+networks:
+  # No route to the outside world: PostgreSQL and Redis live only here.
+  internal:
+    internal: true
+  # Outbound internet for the backend and worker (Steam, IGDB), and the
+  # frontend -> backend connection. Nothing is published from it.
+  edge: {}
+  # Existing Traefik network (never created by this file). Only frontend joins it.
+  private_secured_network:
+    external: true
+
+volumes:
+  # Persistent named volumes, created automatically on the first `up` and reused
+  # afterwards (names: wdywtp_postgres-data, wdywtp_redis-data, wdywtp_models).
+  # Kept by `up`, `restart`, `stop` and `down`; only `down -v` deletes them.
+  postgres-data:
+  redis-data:
+  models:
